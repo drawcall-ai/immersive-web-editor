@@ -2,6 +2,11 @@
   "name": "immersive-web-editor",
   "version": "0.0.1",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/drawcall-ai/immersive-web-editor",
+    "directory": "packages/immersive-web-editor"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

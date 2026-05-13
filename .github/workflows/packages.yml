@@ -21,7 +21,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org/
           package-manager-cache: false
 
       - name: Install pnpm
@@ -90,12 +89,12 @@ jobs:
 
       - name: Publish UI package
         working-directory: packages/ui
-        run: pnpm publish --access public --no-git-checks --provenance
+        run: npm publish --access public
 
       - name: Publish editor package
         working-directory: packages/immersive-web-editor
-        run: pnpm publish --access public --no-git-checks --provenance
+        run: npm publish --access public
 
       - name: Publish AI package
         working-directory: packages/ai
-        run: pnpm publish --access public --no-git-checks --provenance
+        run: npm publish --access public
