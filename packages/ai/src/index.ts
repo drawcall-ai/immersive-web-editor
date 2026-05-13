@@ -44,11 +44,16 @@ class OpencodeBackend {
   private proc: ChildProcessWithoutNullStreams | null = null;
   private startPromise: Promise<void> | null = null;
   private status: AiStatus;
+  private options: Required<Omit<AiChatPluginOptions, 'command' | 'env'>> & {
+    command: string;
+    env: Record<string, string>;
+  };
 
-  constructor(private options: Required<Omit<AiChatPluginOptions, 'command' | 'env'>> & {
+  constructor(options: Required<Omit<AiChatPluginOptions, 'command' | 'env'>> & {
     command: string;
     env: Record<string, string>;
   }) {
+    this.options = options;
     this.status = options.enabled ? { state: 'starting', message: 'OpenCode has not been requested yet.' } : { state: 'disabled' };
   }
 
