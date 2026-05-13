@@ -27,7 +27,6 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
           run_install: false
 
       - name: Install dependencies
@@ -75,6 +74,13 @@ jobs:
             const json = JSON.parse(fs.readFileSync(file, 'utf8'));
             json.version = version;
             json.exports = exports;
+            if (json.dependencies) {
+              for (const name of ['@immersive-web-editor/ui', 'immersive-web-editor']) {
+                if (json.dependencies[name]?.startsWith('workspace:')) {
+                  json.dependencies[name] = version;
+                }
+              }
+            }
             fs.writeFileSync(file, `${JSON.stringify(json, null, 2)}\n`);
           }
           NODE
