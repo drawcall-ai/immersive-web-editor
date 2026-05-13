@@ -1,9 +1,9 @@
-import { Slot } from 'immersive-web-editor';
+import { Slot } from '@iwe/ui';
 import {
   defineField,
   type Field,
   type JsonValue,
-} from '@iwe/vite-plugin/configurable';
+} from 'immersive-web-editor/configurable';
 
 const MOODS = ['calm', 'alert', 'hostile'] as const;
 type Mood = (typeof MOODS)[number];

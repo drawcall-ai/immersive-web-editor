@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, parse, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { EditorPlugin } from '@iwe/vite-plugin';
+import type { EditorPlugin } from 'immersive-web-editor';
 
 export interface AiChatPluginOptions {
   enabled?: boolean;
@@ -288,7 +288,7 @@ async function proxyToOpencode(
   }
 }
 
-export function aiChatPlugin(options: AiChatPluginOptions = {}): EditorPlugin {
+export function ai(options: AiChatPluginOptions = {}): EditorPlugin {
   return {
     name: 'ai-chat',
     client: clientEntry,
@@ -338,4 +338,4 @@ export function aiChatPlugin(options: AiChatPluginOptions = {}): EditorPlugin {
   };
 }
 
-export default aiChatPlugin;
+export default ai;

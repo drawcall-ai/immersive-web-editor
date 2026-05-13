@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "immersive-web-editor": "workspace:*",
+    "@iwe/ui": "workspace:*",
     "@vitejs/plugin-react": "^6.0.1",
     "lucide-react": "^0.468.0",
     "react": "^19.2.5",

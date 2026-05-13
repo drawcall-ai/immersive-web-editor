@@ -30,7 +30,7 @@ export interface EditorOptions {
 const EDITOR_PATH = '/editor';
 const CONFIGURABLES_PATH = '/__editor/configurables';
 const EDITOR_SHELL_VIRTUAL_ID = 'virtual:editor/shell';
-const CONFIGURABLE_MODULE_ID = '@iwe/vite-plugin/configurable';
+const CONFIGURABLE_MODULE_ID = 'immersive-web-editor/configurable';
 const EDITOR_COMPONENT_QUERY = 'editor-component';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -721,7 +721,7 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
   }
 
   return {
-    name: '@iwe/vite-plugin',
+    name: 'immersive-web-editor',
     apply: 'serve',
     enforce: 'pre',
 

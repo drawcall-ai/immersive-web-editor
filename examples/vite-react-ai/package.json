@@ -15,8 +15,9 @@
     "vite": "^8.0.10"
   },
   "devDependencies": {
-    "@iwe/ai-chat-plugin": "workspace:*",
-    "@iwe/vite-plugin": "workspace:*",
+    "@iwe/ai": "workspace:*",
+    "@iwe/ui": "workspace:*",
+    "immersive-web-editor": "workspace:*",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "typescript": "~6.0.2"

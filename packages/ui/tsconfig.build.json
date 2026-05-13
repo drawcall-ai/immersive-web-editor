@@ -8,6 +8,5 @@
     "sourceMap": true,
     "rootDir": "src"
   },
-  "include": ["src"],
-  "exclude": ["src/client"]
+  "include": ["src"]
 }

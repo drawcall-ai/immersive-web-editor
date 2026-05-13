@@ -33,7 +33,7 @@ import {
   type FolderAction,
   type FolderSegment,
   type SlotPath,
-} from 'immersive-web-editor';
+} from '@iwe/ui';
 import './styles.css';
 
 const root: EditorRoot = {

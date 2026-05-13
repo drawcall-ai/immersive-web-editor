@@ -1,7 +1,7 @@
 import {
   config,
   val,
-} from '@iwe/vite-plugin/configurable';
+} from 'immersive-web-editor/configurable';
 import {
   array,
   boolean as bool,
@@ -13,7 +13,7 @@ import {
   rotation3D,
   scale3D,
   string,
-} from '@iwe/vite-plugin/default-schemas';
+} from 'immersive-web-editor/default-schemas';
 import { mood } from './custom-fields';
 
 export function App() {

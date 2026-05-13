@@ -14,12 +14,12 @@ importers:
 
   examples/editor-layout:
     dependencies:
+      '@iwe/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@vitejs/plugin-react':
         specifier: ^6.0.1
         version: 6.0.1(vite@8.0.12(@types/node@22.19.19))
-      immersive-web-editor:
-        specifier: workspace:*
-        version: link:../../packages/immersive-web-editor
       lucide-react:
         specifier: ^0.468.0
         version: 0.468.0(react@19.2.6)
@@ -58,30 +58,30 @@ importers:
         specifier: ^8.0.10
         version: 8.0.12(@types/node@22.19.19)
     devDependencies:
-      '@iwe/ai-chat-plugin':
+      '@iwe/ai':
         specifier: workspace:*
-        version: link:../../packages/ai-chat-plugin
-      '@iwe/vite-plugin':
+        version: link:../../packages/ai
+      '@iwe/ui':
         specifier: workspace:*
-        version: link:../../packages/vite-plugin
+        version: link:../../packages/ui
       '@types/react':
         specifier: ^19.2.14
         version: 19.2.14
       '@types/react-dom':
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.14)
+      immersive-web-editor:
+        specifier: workspace:*
+        version: link:../../packages/immersive-web-editor
       typescript:
         specifier: ~6.0.2
         version: 6.0.3
 
-  packages/ai-chat-plugin:
+  packages/ai:
     dependencies:
       '@emotion/css':
         specifier: ^11.13.5
         version: 11.13.5
-      '@iwe/vite-plugin':
-        specifier: workspace:*
-        version: link:../vite-plugin
       '@opencode-ai/sdk':
         specifier: ^1.14.20
         version: 1.14.48
@@ -94,6 +94,9 @@ importers:
       dompurify:
         specifier: ^3.4.1
         version: 3.4.2
+      immersive-web-editor:
+        specifier: workspace:*
+        version: link:../immersive-web-editor
       lucide-react:
         specifier: ^0.468.0
         version: 0.468.0(react@19.2.6)
@@ -127,6 +130,43 @@ importers:
         version: 8.0.12(@types/node@22.19.19)
 
   packages/immersive-web-editor:
+    dependencies:
+      '@emotion/css':
+        specifier: ^11.13.5
+        version: 11.13.5
+      '@iwe/ui':
+        specifier: workspace:*
+        version: link:../ui
+      cmdk:
+        specifier: ^1.1.1
+        version: 1.1.1(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      lucide-react:
+        specifier: ^0.468.0
+        version: 0.468.0(react@19.2.6)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.19
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.0.0
+        version: 19.2.3(@types/react@19.2.14)
+      react:
+        specifier: ^19.0.0
+        version: 19.2.6
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.6(react@19.2.6)
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vite:
+        specifier: ^8.0.0
+        version: 8.0.12(@types/node@22.19.19)
+
+  packages/ui:
     dependencies:
       '@emotion/css':
         specifier: ^11.13.5
@@ -165,43 +205,6 @@ importers:
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
-
-  packages/vite-plugin:
-    dependencies:
-      '@emotion/css':
-        specifier: ^11.13.5
-        version: 11.13.5
-      cmdk:
-        specifier: ^1.1.1
-        version: 1.1.1(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      immersive-web-editor:
-        specifier: workspace:*
-        version: link:../immersive-web-editor
-      lucide-react:
-        specifier: ^0.468.0
-        version: 0.468.0(react@19.2.6)
-    devDependencies:
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.19
-      '@types/react':
-        specifier: ^19.0.0
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: ^19.0.0
-        version: 19.2.3(@types/react@19.2.14)
-      react:
-        specifier: ^19.0.0
-        version: 19.2.6
-      react-dom:
-        specifier: ^19.0.0
-        version: 19.2.6(react@19.2.6)
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
-      vite:
-        specifier: ^8.0.0
-        version: 8.0.12(@types/node@22.19.19)
 
 packages:
 

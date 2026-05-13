@@ -2,7 +2,7 @@
 // editor shell and configurable runtime; it is not injected into app pages.
 
 import type { ReactNode } from 'react';
-import type { FieldSegment, FolderSegment, SlotPath } from 'immersive-web-editor';
+import type { FieldSegment, FolderSegment, SlotPath } from '@iwe/ui';
 import type { JsonValue } from '../rpc';
 
 export type { JsonValue };
