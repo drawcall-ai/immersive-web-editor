@@ -30,7 +30,7 @@ export interface EditorOptions {
 const EDITOR_PATH = '/editor';
 const CONFIGURABLES_PATH = '/__editor/configurables';
 const EDITOR_SHELL_VIRTUAL_ID = 'virtual:editor/shell';
-const CONFIGURABLE_MODULE_ID = 'immersive-web-editor/configurable';
+const CONFIGURABLE_MODULE_ID = 'immersive-web-editor';
 const EDITOR_COMPONENT_QUERY = 'editor-component';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -842,3 +842,46 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
 }
 
 export { editorPlugin };
+
+export declare const array: typeof import('./default-schemas').array;
+export declare const boolean: typeof import('./default-schemas').boolean;
+export declare const color: typeof import('./default-schemas').color;
+export declare const config: typeof import('./configurable').config;
+export declare const configurable: typeof import('./configurable').configurable;
+export declare const defineField: typeof import('./configurable').defineField;
+export declare const euler: typeof import('./default-schemas').euler;
+export declare const json: typeof import('./default-schemas').json;
+export declare const number: typeof import('./default-schemas').number;
+export declare const object: typeof import('./default-schemas').object;
+export declare const optional: typeof import('./default-schemas').optional;
+export declare const position3D: typeof import('./default-schemas').position3D;
+export declare const rotation3D: typeof import('./default-schemas').rotation3D;
+export declare const scale3D: typeof import('./default-schemas').scale3D;
+export declare const schema: typeof import('./default-schemas').schema;
+export declare const string: typeof import('./default-schemas').string;
+export declare const val: typeof import('./configurable').val;
+export declare const vec2: typeof import('./default-schemas').vec2;
+export declare const vec3: typeof import('./default-schemas').vec3;
+
+export type {
+  DefineFieldOptions,
+  EditorComponentRef,
+  EditorFieldComponent,
+  EditorFieldComponentProps,
+  Field,
+  FieldDescriptor,
+  FieldOptions,
+  FieldTemplate,
+  FieldValue,
+  JsonValue,
+  Vector2,
+  Vector3,
+} from './configurable';
+export type {
+  ArrayFieldOptions,
+  BooleanFieldOptions,
+  ColorFieldOptions,
+  NumberFieldOptions,
+  StringFieldOptions,
+  VectorFieldOptions,
+} from './default-schemas';

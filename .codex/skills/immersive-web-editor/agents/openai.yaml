@@ -1,0 +1,4 @@
+interface:
+  display_name: "Immersive Web Editor"
+  short_description: "Add editable config() controls"
+  default_prompt: "Use $immersive-web-editor to expose scene parameters with config()."

@@ -1,11 +1,8 @@
 import {
-  config,
-  val,
-} from 'immersive-web-editor/configurable';
-import {
   array,
   boolean as bool,
   color,
+  config,
   number,
   object,
   optional,
@@ -13,7 +10,8 @@ import {
   rotation3D,
   scale3D,
   string,
-} from 'immersive-web-editor/default-schemas';
+  val,
+} from 'immersive-web-editor';
 import { mood } from './custom-fields';
 
 export function App() {

@@ -3,7 +3,7 @@ import {
   defineField,
   type Field,
   type JsonValue,
-} from 'immersive-web-editor/configurable';
+} from 'immersive-web-editor';
 
 const MOODS = ['calm', 'alert', 'hostile'] as const;
 type Mood = (typeof MOODS)[number];
