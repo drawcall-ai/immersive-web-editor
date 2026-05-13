@@ -1,0 +1,40 @@
+{
+  "name": "immersive-web-editor",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.tsx",
+      "import": "./src/index.tsx"
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^5.6.0"
+  },
+  "dependencies": {
+    "@emotion/css": "^11.13.5",
+    "@radix-ui/react-accordion": "^1.2.12",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@radix-ui/react-tabs": "^1.1.13",
+    "@radix-ui/react-tooltip": "^1.2.8",
+    "lucide-react": "^0.468.0",
+    "react-resizable-panels": "^4.11.0"
+  }
+}

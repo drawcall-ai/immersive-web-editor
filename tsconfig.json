@@ -1,0 +1,9 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/immersive-web-editor" },
+    { "path": "./packages/vite-plugin" },
+    { "path": "./packages/ai-chat-plugin" },
+    { "path": "./examples/editor-layout" }
+  ]
+}
