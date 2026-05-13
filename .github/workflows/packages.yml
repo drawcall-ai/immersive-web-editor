@@ -5,19 +5,16 @@ on:
     tags:
       - "*"
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   deploy-packages:
     runs-on: ubuntu-latest
-    environment: npm
     permissions:
       contents: read
+      packages: write
       id-token: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
@@ -28,16 +25,14 @@ jobs:
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
 
-      - name: Update npm
-        run: npm install -g npm@latest
-
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v2
         with:
+          version: 10
           run_install: false
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
 
       - name: Build packages
         run: pnpm build
@@ -97,12 +92,12 @@ jobs:
 
       - name: Publish UI package
         working-directory: packages/ui
-        run: npm publish --access public
+        run: pnpm publish --access public --no-git-checks --tag latest
 
       - name: Publish editor package
         working-directory: packages/immersive-web-editor
-        run: npm publish --access public
+        run: pnpm publish --access public --no-git-checks --tag latest
 
       - name: Publish AI package
         working-directory: packages/ai
-        run: npm publish --access public
+        run: pnpm publish --access public --no-git-checks --tag latest
