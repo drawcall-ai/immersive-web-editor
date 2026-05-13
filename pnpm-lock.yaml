@@ -14,7 +14,7 @@ importers:
 
   examples/editor-layout:
     dependencies:
-      '@iwe/ui':
+      '@immersive-web-editor/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@vitejs/plugin-react':
@@ -58,10 +58,10 @@ importers:
         specifier: ^8.0.10
         version: 8.0.12(@types/node@22.19.19)
     devDependencies:
-      '@iwe/ai':
+      '@immersive-web-editor/ai':
         specifier: workspace:*
         version: link:../../packages/ai
-      '@iwe/ui':
+      '@immersive-web-editor/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@types/react':
@@ -134,7 +134,7 @@ importers:
       '@emotion/css':
         specifier: ^11.13.5
         version: 11.13.5
-      '@iwe/ui':
+      '@immersive-web-editor/ui':
         specifier: workspace:*
         version: link:../ui
       cmdk:

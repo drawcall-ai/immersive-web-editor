@@ -17,7 +17,7 @@ export {
   vec3,
 } from './default-schemas';
 import type { ReactNode } from 'react';
-import type { FieldSegment, FolderSegment, SlotPath } from '@iwe/ui';
+import type { FieldSegment, FolderSegment, SlotPath } from '@immersive-web-editor/ui';
 import { isEditorComponentRef, isJsonValue, type EditorComponentRef, type JsonValue, type SerializedFieldDescriptor } from './rpc';
 
 export type { EditorComponentRef, JsonValue };

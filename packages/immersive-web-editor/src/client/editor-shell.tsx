@@ -11,7 +11,7 @@ import {
   type FieldSegment,
   type FolderSegment,
   type SlotPath,
-} from '@iwe/ui';
+} from '@immersive-web-editor/ui';
 import {
   Bot,
   Box,

@@ -1,5 +1,5 @@
 {
-  "name": "@iwe/example-editor-layout",
+  "name": "@immersive-web-editor/example-editor-layout",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@iwe/ui": "workspace:*",
+    "@immersive-web-editor/ui": "workspace:*",
     "@vitejs/plugin-react": "^6.0.1",
     "lucide-react": "^0.468.0",
     "react": "^19.2.5",

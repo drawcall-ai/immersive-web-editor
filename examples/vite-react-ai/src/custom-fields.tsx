@@ -1,4 +1,4 @@
-import { Slot } from '@iwe/ui';
+import { Slot } from '@immersive-web-editor/ui';
 import {
   defineField,
   type Field,

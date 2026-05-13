@@ -1,5 +1,5 @@
 {
-  "name": "@iwe/example-vite-react-ai",
+  "name": "@immersive-web-editor/example-vite-react-ai",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -15,8 +15,8 @@
     "vite": "^8.0.10"
   },
   "devDependencies": {
-    "@iwe/ai": "workspace:*",
-    "@iwe/ui": "workspace:*",
+    "@immersive-web-editor/ai": "workspace:*",
+    "@immersive-web-editor/ui": "workspace:*",
     "immersive-web-editor": "workspace:*",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

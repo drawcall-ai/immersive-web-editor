@@ -1,5 +1,5 @@
 {
-  "name": "@iwe/ui",
+  "name": "@immersive-web-editor/ui",
   "version": "0.0.1",
   "type": "module",
   "main": "./dist/index.js",

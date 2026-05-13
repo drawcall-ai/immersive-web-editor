@@ -1,5 +1,5 @@
 import { css } from '@emotion/css';
-import { defaultTheme } from '@iwe/ui';
+import { defaultTheme } from '@immersive-web-editor/ui';
 
 const t = defaultTheme;
 

@@ -6,7 +6,7 @@ import {
   StringField,
   Vector3Field,
   type FolderSegment,
-} from '@iwe/ui';
+} from '@immersive-web-editor/ui';
 import { Plus, ToggleLeft, X } from 'lucide-react';
 import {
   defineField,

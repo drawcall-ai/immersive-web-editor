@@ -5,7 +5,7 @@ Create a schema when the AI needs a domain-specific control instead of a generic
 ## Pattern
 
 ```tsx
-import { Slot } from '@iwe/ui';
+import { Slot } from '@immersive-web-editor/ui';
 import { defineField, type Field } from 'immersive-web-editor';
 
 const OPTIONS = ['calm', 'alert', 'hostile'] as const;

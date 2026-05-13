@@ -38,7 +38,7 @@
   },
   "dependencies": {
     "@emotion/css": "^11.13.5",
-    "@iwe/ui": "workspace:*",
+    "@immersive-web-editor/ui": "workspace:*",
     "cmdk": "^1.1.1",
     "lucide-react": "^0.468.0"
   }
