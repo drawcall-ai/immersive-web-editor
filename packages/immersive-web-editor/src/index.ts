@@ -30,6 +30,7 @@ export interface EditorOptions {
 const EDITOR_PATH = '/editor';
 const CONFIGURABLES_PATH = '/__editor/configurables';
 const EDITOR_SHELL_VIRTUAL_ID = 'virtual:editor/shell';
+const EDITOR_PLUGIN_VIRTUAL_PREFIX = 'virtual:editor/plugin/';
 const CONFIGURABLE_MODULE_ID = 'immersive-web-editor';
 const EDITOR_COMPONENT_QUERY = 'editor-component';
 
@@ -50,6 +51,10 @@ function fsModulePath(file: string): string {
 
 function clientModulePath(client: string): string {
   return isBareModuleId(client) ? client : fsModulePath(client);
+}
+
+function pluginClientModuleUrl(index: number): string {
+  return `/@id/__x00__${EDITOR_PLUGIN_VIRTUAL_PREFIX}${index}`;
 }
 
 function isBareModuleId(value: string): boolean {
@@ -677,9 +682,9 @@ function extractEditorComponents(
 function renderEditorShell(wsToken: string, plugins: EditorPlugin[]): string {
   const pluginModules = plugins
     .filter((plugin) => plugin.client)
-    .map((plugin) => ({
+    .map((plugin, index) => ({
       name: plugin.name,
-      module: clientModulePath(plugin.client!),
+      module: pluginClientModuleUrl(index),
     }));
   const pluginCommands = plugins.flatMap((plugin) => plugin.commands ?? []);
 
@@ -712,6 +717,7 @@ function renderEditorShell(wsToken: string, plugins: EditorPlugin[]): string {
 
 export default function editorPlugin(options: EditorOptions = {}): Plugin {
   const plugins = options.plugins ?? [];
+  const clientPlugins = plugins.filter((plugin) => plugin.client);
   const configurablesByFile = new Map<string, ConfigurableRecord[]>();
   const configurablesById = new Map<string, ConfigurableRecord>();
   let wsToken = '';
@@ -771,11 +777,18 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
 
     resolveId(id) {
       if (id === EDITOR_SHELL_VIRTUAL_ID) return `\0${EDITOR_SHELL_VIRTUAL_ID}`;
+      if (id.startsWith(EDITOR_PLUGIN_VIRTUAL_PREFIX)) return `\0${id}`;
       return null;
     },
 
     load(id) {
       if (id === `\0${EDITOR_SHELL_VIRTUAL_ID}`) return `import ${JSON.stringify(editorShellImport)};`;
+      if (id.startsWith(`\0${EDITOR_PLUGIN_VIRTUAL_PREFIX}`)) {
+        const index = Number(id.slice(`\0${EDITOR_PLUGIN_VIRTUAL_PREFIX}`.length));
+        const plugin = clientPlugins[index];
+        if (!plugin?.client) return null;
+        return `export * from ${JSON.stringify(clientModulePath(plugin.client))};`;
+      }
       return null;
     },
 
