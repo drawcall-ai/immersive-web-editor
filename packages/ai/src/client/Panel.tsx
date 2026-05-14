@@ -31,8 +31,8 @@ import type {
   Todo,
 } from '@opencode-ai/sdk/v2/client';
 
-const DEFAULT_MODEL_PROVIDER = 'openrouter';
-const DEFAULT_MODEL_ID = 'anthropic/claude-sonnet-4.5';
+const DEFAULT_MODEL_PROVIDER = 'opencode';
+const DEFAULT_MODEL_ID = 'big-pickle';
 
 const panelStyles = {
   root: css({
@@ -114,6 +114,7 @@ type AiStatus = { state: 'disabled' | 'starting' | 'ready' | 'error'; message?: 
 type AttachedFile = FilePartInput & { localID: string };
 type ModelChoice = { providerID: string; modelID: string; label: string; attachment: boolean };
 type ProviderListPayload = { all?: Provider[]; default?: Record<string, string>; connected?: string[] };
+type ProviderCatalog = { providers: Provider[]; defaults: Record<string, string>; connected: string[] };
 type SessionData = {
   messages: SessionMessage[];
   questions: QuestionRequest[];
@@ -207,8 +208,12 @@ async function fileToPart(file: File): Promise<AttachedFile> {
   };
 }
 
-function modelChoicesFromProviders(providers: Provider[]): ModelChoice[] {
-  const choices = providers.flatMap((provider) =>
+function modelChoicesFromCatalog(catalog: ProviderCatalog): ModelChoice[] {
+  const connected = new Set(catalog.connected);
+  const visibleProviders = connected.size > 0
+    ? catalog.providers.filter((provider) => connected.has(provider.id))
+    : catalog.providers;
+  const choices = visibleProviders.flatMap((provider) =>
     Object.values(provider.models ?? {}).map((model) => ({
       providerID: provider.id,
       modelID: model.id,
@@ -220,12 +225,43 @@ function modelChoicesFromProviders(providers: Provider[]): ModelChoice[] {
   return active.length ? active : choices;
 }
 
-function normalizeProviders(input: unknown): Provider[] {
-  if (Array.isArray(input)) return input as Provider[];
-  if (input && typeof input === 'object' && Array.isArray((input as ProviderListPayload).all)) {
-    return (input as ProviderListPayload).all ?? [];
+function normalizeProviderCatalog(input: unknown): ProviderCatalog {
+  if (Array.isArray(input)) return { providers: input as Provider[], defaults: {}, connected: [] };
+  if (input && typeof input === 'object') {
+    const payload = input as ProviderListPayload;
+    return {
+      providers: payload.all ?? [],
+      defaults: payload.default ?? {},
+      connected: payload.connected ?? [],
+    };
   }
-  return [];
+  return { providers: [], defaults: {}, connected: [] };
+}
+
+function firstModelValue(provider: Provider | undefined, preferredModelID?: string): string | null {
+  if (!provider) return null;
+  if (preferredModelID && provider.models?.[preferredModelID]) {
+    return modelValue(provider.id, preferredModelID);
+  }
+  const first = Object.values(provider.models ?? {}).find((model) => !model.name?.toLowerCase().includes('deprecated'))
+    ?? Object.values(provider.models ?? {})[0];
+  return first ? modelValue(provider.id, first.id) : null;
+}
+
+function preferredModelValue(catalog: ProviderCatalog): string {
+  const byID = new Map(catalog.providers.map((provider) => [provider.id, provider]));
+  const connected = catalog.connected
+    .map((providerID) => byID.get(providerID))
+    .filter((provider): provider is Provider => Boolean(provider));
+
+  for (const provider of connected) {
+    const value = firstModelValue(provider, catalog.defaults[provider.id]);
+    if (value) return value;
+  }
+
+  return firstModelValue(byID.get(DEFAULT_MODEL_PROVIDER), catalog.defaults[DEFAULT_MODEL_PROVIDER])
+    ?? firstModelValue(catalog.providers[0], catalog.defaults[catalog.providers[0]?.id ?? ''])
+    ?? modelValue(DEFAULT_MODEL_PROVIDER, DEFAULT_MODEL_ID);
 }
 
 function sortSessions(list: Session[]): Session[] {
@@ -395,7 +431,7 @@ function SessionPanel({ fixedSessionID }: { fixedSessionID: string }) {
   });
   const providersQuery = useQuery({
     queryKey: queryKeys.providers,
-    queryFn: async () => normalizeProviders((await client.provider.list()).data),
+    queryFn: async () => normalizeProviderCatalog((await client.provider.list()).data),
   });
   const sessionDataQuery = useQuery({
     queryKey: sessionID ? queryKeys.sessionData(sessionID) : ['opencode', 'session', 'none'],
@@ -419,12 +455,18 @@ function SessionPanel({ fixedSessionID }: { fixedSessionID: string }) {
   });
 
   const sessions = sessionsQuery.data ?? [];
-  const providers = providersQuery.data ?? [];
+  const providerCatalog = providersQuery.data ?? { providers: [], defaults: {}, connected: [] };
   const messages = sessionDataQuery.data?.messages ?? [];
   const pendingQuestions = sessionDataQuery.data?.questions ?? [];
   const pendingPermissions = sessionDataQuery.data?.permissions ?? [];
   const children = sessionDataQuery.data?.children ?? [];
-  const modelChoices = useMemo(() => modelChoicesFromProviders(providers), [providers]);
+  const modelChoices = useMemo(() => modelChoicesFromCatalog(providerCatalog), [providerCatalog]);
+  const resolvedModel = useMemo(() => {
+    if (modelChoices.some((m) => modelValue(m.providerID, m.modelID) === selectedModel)) {
+      return splitModelValue(selectedModel);
+    }
+    return splitModelValue(preferredModelValue(providerCatalog));
+  }, [modelChoices, providerCatalog, selectedModel]);
   const loading = sessionsQuery.isLoading || (!!sessionID && sessionDataQuery.isLoading);
   const updateSessionData = useCallback(
     (targetID: string, updater: (data: SessionData) => SessionData) => {
@@ -462,9 +504,8 @@ function SessionPanel({ fixedSessionID }: { fixedSessionID: string }) {
   useEffect(() => {
     if (modelChoices.length === 0) return;
     if (modelChoices.some((m) => modelValue(m.providerID, m.modelID) === selectedModel)) return;
-    const preferred = modelChoices.find((m) => m.providerID === DEFAULT_MODEL_PROVIDER) ?? modelChoices[0];
-    setSelectedModel(modelValue(preferred.providerID, preferred.modelID));
-  }, [modelChoices, selectedModel]);
+    setSelectedModel(preferredModelValue(providerCatalog));
+  }, [modelChoices, providerCatalog, selectedModel]);
 
   useEffect(() => {
     let cancelled = false;
@@ -607,7 +648,6 @@ function SessionPanel({ fixedSessionID }: { fixedSessionID: string }) {
   const send = useCallback(
     async (text: string) => {
       if (!sessionID || (!text.trim() && attachments.length === 0)) return;
-      const { providerID, modelID } = splitModelValue(selectedModel);
       const parts = [
         ...(text.trim() ? [{ type: 'text' as const, text: text.trim() }] : []),
         ...attachments.map(({ localID, ...part }) => part),
@@ -619,7 +659,7 @@ function SessionPanel({ fixedSessionID }: { fixedSessionID: string }) {
       try {
         await client.session.promptAsync({
           sessionID,
-          model: { providerID, modelID },
+          model: resolvedModel,
           parts,
         });
       } catch (e) {
@@ -627,7 +667,7 @@ function SessionPanel({ fixedSessionID }: { fixedSessionID: string }) {
         setRunning(false);
       }
     },
-    [attachments, client, selectedModel, sessionID],
+    [attachments, client, resolvedModel, sessionID],
   );
 
   const attachFiles = useCallback(async (files: FileList | File[]) => {
@@ -902,7 +942,7 @@ function ModelSelect({ value, onChange, models }: {
     <label className="dc-model-select" title="Model">
       <span>Model</span>
       <select value={value} onChange={(e) => onChange(e.target.value)}>
-        {models.length === 0 && <option value={value}>OpenRouter / Claude Sonnet 4.5</option>}
+        {models.length === 0 && <option value={value}>OpenCode / Big Pickle</option>}
         {models.map((model) => (
           <option key={modelValue(model.providerID, model.modelID)} value={modelValue(model.providerID, model.modelID)}>
             {model.label}
