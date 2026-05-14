@@ -1,3 +1,5 @@
+/// <reference path="./lucide-icon-modules.d.ts" />
+
 import {
   BooleanField,
   ColorField,
@@ -7,7 +9,9 @@ import {
   Vector3Field,
   type FolderSegment,
 } from '@immersive-web-editor/ui';
-import { Plus, ToggleLeft, X } from 'lucide-react';
+import Plus from 'lucide-react/dist/esm/icons/plus.js';
+import ToggleLeft from 'lucide-react/dist/esm/icons/toggle-left.js';
+import X from 'lucide-react/dist/esm/icons/x.js';
 import {
   defineField,
   type Field,

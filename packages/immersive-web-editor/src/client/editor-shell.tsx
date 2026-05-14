@@ -1,3 +1,5 @@
+/// <reference path="../lucide-icon-modules.d.ts" />
+
 // Minimal editor shell. The workbench layout is entirely provided by
 // immersive-web-editor: preview, contributed plugins, and config fields are all
 // rendered as Slot leaves.
@@ -12,15 +14,13 @@ import {
   type FolderSegment,
   type SlotPath,
 } from '@immersive-web-editor/ui';
-import {
-  Bot,
-  Box,
-  FileText,
-  Folder as FolderIcon,
-  MonitorPlay,
-  SlidersHorizontal,
-  Type,
-} from 'lucide-react';
+import Bot from 'lucide-react/dist/esm/icons/bot.js';
+import Box from 'lucide-react/dist/esm/icons/box.js';
+import FileText from 'lucide-react/dist/esm/icons/file-text.js';
+import FolderIcon from 'lucide-react/dist/esm/icons/folder.js';
+import MonitorPlay from 'lucide-react/dist/esm/icons/monitor-play.js';
+import SlidersHorizontal from 'lucide-react/dist/esm/icons/sliders-horizontal.js';
+import Type from 'lucide-react/dist/esm/icons/type.js';
 import * as commands from './commands';
 import { useKeybindings } from './commands';
 import { Palette } from './palette';

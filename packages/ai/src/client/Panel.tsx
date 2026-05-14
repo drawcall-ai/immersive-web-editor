@@ -1,18 +1,18 @@
+/// <reference path="../lucide-icon-modules.d.ts" />
+
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
-import {
-  Bot,
-  ChevronDown,
-  FileText,
-  GitBranch,
-  ImagePlus,
-  Loader2,
-  MessageSquarePlus,
-  RotateCcw,
-  Send,
-  Trash2,
-  X,
-} from 'lucide-react';
+import Bot from 'lucide-react/dist/esm/icons/bot.js';
+import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down.js';
+import FileText from 'lucide-react/dist/esm/icons/file-text.js';
+import GitBranch from 'lucide-react/dist/esm/icons/git-branch.js';
+import ImagePlus from 'lucide-react/dist/esm/icons/image-plus.js';
+import Loader2 from 'lucide-react/dist/esm/icons/loader-2.js';
+import MessageSquarePlus from 'lucide-react/dist/esm/icons/message-square-plus.js';
+import RotateCcw from 'lucide-react/dist/esm/icons/rotate-ccw.js';
+import Send from 'lucide-react/dist/esm/icons/send.js';
+import Trash2 from 'lucide-react/dist/esm/icons/trash-2.js';
+import X from 'lucide-react/dist/esm/icons/x.js';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import { QueryClientProvider, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createRoot } from 'react-dom/client';

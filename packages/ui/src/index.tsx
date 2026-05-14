@@ -1,3 +1,5 @@
+/// <reference path="./lucide-icon-modules.d.ts" />
+
 import {
   Fragment,
   createContext,
@@ -20,7 +22,10 @@ import * as Tabs from '@radix-ui/react-tabs';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { createPortal } from 'react-dom';
 import { css, cx } from '@emotion/css';
-import { ChevronDown, ChevronRight, MoreHorizontal, type LucideIcon } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down.js';
+import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right.js';
+import MoreHorizontal from 'lucide-react/dist/esm/icons/more-horizontal.js';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 
 export type Arrangement =
