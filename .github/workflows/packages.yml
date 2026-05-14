@@ -62,7 +62,7 @@ jobs:
                 browser: './dist/client-public.js',
                 import: './dist/index.js',
               },
-              './dist/client/editor-shell.js': {
+              './editor-shell': {
                 import: './dist/client/editor-shell.js',
               },
             },

@@ -42,7 +42,7 @@ const editorShellEntry = resolve(
 );
 const editorShellImport = entryFile.endsWith('.ts')
   ? fsModulePath(editorShellEntry)
-  : 'immersive-web-editor/dist/client/editor-shell.js';
+  : 'immersive-web-editor/editor-shell';
 
 function fsModulePath(file: string): string {
   return `/@fs/${normalizePath(resolve(file))}`;

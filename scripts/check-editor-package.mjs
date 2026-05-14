@@ -6,7 +6,7 @@ const { default: editorPlugin } = await import(new URL('dist/index.js', packageD
 const plugin = editorPlugin();
 const shellModule = plugin.load('\0virtual:editor/shell');
 
-if (typeof shellModule !== 'string' || !shellModule.includes('dist/client/editor-shell.js')) {
+if (typeof shellModule !== 'string' || !shellModule.includes('immersive-web-editor/editor-shell')) {
   throw new Error('dist/index.js must load the built editor shell.');
 }
 
