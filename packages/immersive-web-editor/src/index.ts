@@ -33,8 +33,13 @@ const EDITOR_SHELL_VIRTUAL_ID = 'virtual:editor/shell';
 const CONFIGURABLE_MODULE_ID = 'immersive-web-editor';
 const EDITOR_COMPONENT_QUERY = 'editor-component';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const editorShellEntry = resolve(here, 'client', 'editor-shell.tsx');
+const entryFile = fileURLToPath(import.meta.url);
+const here = dirname(entryFile);
+const editorShellEntry = resolve(
+  here,
+  'client',
+  entryFile.endsWith('.ts') ? 'editor-shell.tsx' : 'editor-shell.js',
+);
 
 function fsModulePath(file: string): string {
   return `/@fs/${normalizePath(resolve(file))}`;
