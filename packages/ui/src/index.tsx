@@ -288,7 +288,7 @@ const styles = {
     '&[data-placement="top"]': { gridTemplateRows: 'auto minmax(0, 1fr)' },
     '&[data-placement="bottom"]': { gridTemplateRows: 'minmax(0, 1fr) auto' },
   }),
-  navContent: css({ minHeight: 0, minWidth: 0, overflow: 'auto' }),
+  navContent: css({ minHeight: 0, minWidth: 0, overflow: 'hidden' }),
   nav: css({
     background: t.color.bg,
     display: 'flex',
@@ -393,10 +393,10 @@ const styles = {
     '&[data-axis="horizontal"]': { width: 1, cursor: 'col-resize' },
     '&[data-axis="vertical"]': { height: 1, cursor: 'row-resize' },
   }),
-  stack: css({ display: 'grid', gap: 8, padding: 8, overflow: 'auto', '&[data-fill="true"]': { height: '100%', overflow: 'hidden' } }),
-  grid: css({ display: 'grid', gap: 8, padding: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', overflow: 'auto' }),
+  stack: css({ boxSizing: 'border-box', display: 'grid', gap: 8, padding: 8, overflow: 'auto', '&[data-fill="true"]': { height: '100%', overflow: 'hidden' } }),
+  grid: css({ boxSizing: 'border-box', display: 'grid', gap: 8, padding: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', overflow: 'auto' }),
   gridCell: css({ minWidth: 0, minHeight: 0 }),
-  fields: css({ display: 'grid', gap: 8, padding: 8, '&[data-fill="true"]': { height: '100%', padding: 0 } }),
+  fields: css({ boxSizing: 'border-box', display: 'grid', gap: 8, padding: 8, '&[data-fill="true"]': { height: '100%', padding: 0 } }),
   fieldHost: css({
     minWidth: 0,
     display: 'grid',
