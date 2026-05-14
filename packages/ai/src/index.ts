@@ -37,8 +37,9 @@ const HOP_BY_HOP = new Set([
 ]);
 const STRIPPED_DOWNSTREAM = new Set([...HOP_BY_HOP, 'content-length', 'content-encoding']);
 
-const here = dirname(fileURLToPath(import.meta.url));
-const clientEntry = resolve(here, 'client', 'register.tsx');
+const entryFile = fileURLToPath(import.meta.url);
+const here = dirname(entryFile);
+const clientEntry = resolve(here, 'client', entryFile.endsWith('.ts') ? 'register.tsx' : 'register.js');
 
 class OpencodeBackend {
   private proc: ChildProcessWithoutNullStreams | null = null;
