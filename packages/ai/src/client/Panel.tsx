@@ -161,6 +161,35 @@ function applyPartUpdate(list: SessionMessage[], part: Part): SessionMessage[] {
   return next;
 }
 
+function applyPartDelta(
+  list: SessionMessage[],
+  delta: { messageID?: string; partID?: string; field?: string; delta?: unknown; sessionID?: string },
+): SessionMessage[] {
+  if (!delta.messageID || !delta.partID || typeof delta.field !== 'string') return list;
+  const idx = list.findIndex((m) => m.info.id === delta.messageID);
+  if (idx === -1) return list;
+
+  const msg = list[idx];
+  const pIdx = msg.parts.findIndex((p) => p.id === delta.partID);
+  const current = pIdx === -1
+    ? {
+      id: delta.partID,
+      sessionID: delta.sessionID ?? msg.info.sessionID,
+      messageID: delta.messageID,
+      type: 'text',
+    } as Part & Record<string, unknown>
+    : msg.parts[pIdx] as Part & Record<string, unknown>;
+  const previous = current[delta.field];
+  const value = typeof previous === 'string' && typeof delta.delta === 'string'
+    ? previous + delta.delta
+    : delta.delta;
+  const nextPart = { ...current, [delta.field]: value } as Part;
+  const parts = pIdx === -1 ? [...msg.parts, nextPart] : msg.parts.map((p, i) => (i === pIdx ? nextPart : p));
+  const next = list.slice();
+  next[idx] = { ...msg, parts };
+  return next;
+}
+
 function applyMessageUpdate(list: SessionMessage[], info: Message): SessionMessage[] {
   const idx = list.findIndex((m) => m.info.id === info.id);
   if (idx === -1) return [...list, { info, parts: [] }];
@@ -565,6 +594,13 @@ function SessionPanel({ fixedSessionID }: { fixedSessionID: string }) {
         updateSessionData(ev.properties.sessionID, (data) => ({
           ...data,
           messages: applyPartUpdate(data.messages, ev.properties.part),
+        }));
+        return;
+      }
+      if (ev.type === 'message.part.delta') {
+        updateSessionData(ev.properties.sessionID, (data) => ({
+          ...data,
+          messages: applyPartDelta(data.messages, ev.properties),
         }));
         return;
       }

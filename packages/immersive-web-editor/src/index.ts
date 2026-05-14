@@ -833,6 +833,8 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
             writeFileSync(record.file, next);
             const refreshed = collectConfigurables(next, record.file, root);
             replaceFileConfigurables(record.file, refreshed?.records ?? []);
+            server.moduleGraph.invalidateAll();
+            server.ws.send({ type: 'full-reload', path: '*' });
             const updatedRecord = configurablesById.get(record.id) ?? {
               ...record,
               source: replacement,
