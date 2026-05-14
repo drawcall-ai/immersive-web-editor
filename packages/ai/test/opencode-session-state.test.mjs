@@ -2,10 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  appendOptimisticUserMessage,
   applyMessageUpdate,
   applyPartDelta,
   applyPartRemoved,
   applyPartUpdate,
+  createOptimisticUserMessage,
+  reconcileSessionMessages,
 } from '../dist/client/opencode-session-state.js';
 
 const message = (overrides = {}) => ({
@@ -53,10 +56,19 @@ test('applyPartUpdate inserts or replaces parts for an existing message', () => 
   assert.equal(replaced[0].parts[0].text, 'updated');
 });
 
-test('applyPartUpdate ignores parts without a matching message', () => {
+test('applyPartUpdate preserves parts that arrive before message info', () => {
+  const next = applyPartUpdate([], textPart());
+
+  assert.equal(next.length, 1);
+  assert.equal(next[0].info.id, 'message-1');
+  assert.equal(next[0].info.sessionID, 'session-1');
+  assert.equal(next[0].info.role, 'assistant');
+  assert.deepEqual(next[0].parts, [textPart()]);
+});
+
+test('applyPartUpdate ignores parts without a message id', () => {
   const list = [{ info: message(), parts: [] }];
 
-  assert.equal(applyPartUpdate(list, textPart({ messageID: 'missing' })), list);
   assert.equal(applyPartUpdate(list, { ...textPart(), messageID: undefined }), list);
 });
 
@@ -135,4 +147,62 @@ test('applyPartRemoved removes matching parts only', () => {
 
   assert.deepEqual(next[0].parts, [textPart({ id: 'part-2', text: 'keep' })]);
   assert.equal(applyPartRemoved(list, 'missing', 'part-1'), list);
+});
+
+test('createOptimisticUserMessage builds a local user message from prompt parts', () => {
+  const optimistic = createOptimisticUserMessage(
+    'session-1',
+    [{ type: 'text', text: 'show me immediately' }],
+    { providerID: 'openai', modelID: 'gpt-4.1-mini' },
+    123,
+  );
+
+  assert.equal(optimistic.info.sessionID, 'session-1');
+  assert.equal(optimistic.info.role, 'user');
+  assert.deepEqual(optimistic.info.model, { providerID: 'openai', modelID: 'gpt-4.1-mini' });
+  assert.equal(optimistic.parts[0].messageID, optimistic.info.id);
+  assert.equal(optimistic.parts[0].text, 'show me immediately');
+});
+
+test('appendOptimisticUserMessage appends without mutating the previous list', () => {
+  const list = [{ info: message(), parts: [] }];
+  const optimistic = createOptimisticUserMessage(
+    'session-1',
+    [{ type: 'text', text: 'hi' }],
+    { providerID: 'openai', modelID: 'gpt-4.1-mini' },
+    123,
+  );
+
+  const next = appendOptimisticUserMessage(list, optimistic);
+
+  assert.equal(list.length, 1);
+  assert.equal(next.length, 2);
+  assert.equal(next[1], optimistic);
+});
+
+test('reconcileSessionMessages replaces local user messages with server history', () => {
+  const optimistic = createOptimisticUserMessage(
+    'session-1',
+    [{ type: 'text', text: 'hi' }],
+    { providerID: 'openai', modelID: 'gpt-4.1-mini' },
+    123,
+  );
+  const serverUser = { info: message({ id: 'server-user', role: 'user' }), parts: [textPart({ messageID: 'server-user', text: 'hi' })] };
+
+  assert.deepEqual(reconcileSessionMessages([optimistic], [serverUser]), [serverUser]);
+});
+
+test('reconcileSessionMessages preserves longer streamed text over an older snapshot', () => {
+  const streamed = [{
+    info: message({ id: 'assistant-1' }),
+    parts: [textPart({ id: 'part-1', messageID: 'assistant-1', text: 'streaming response' })],
+  }];
+  const snapshot = [{
+    info: message({ id: 'assistant-1' }),
+    parts: [textPart({ id: 'part-1', messageID: 'assistant-1', text: '' })],
+  }];
+
+  const next = reconcileSessionMessages(streamed, snapshot);
+
+  assert.equal(next[0].parts[0].text, 'streaming response');
 });

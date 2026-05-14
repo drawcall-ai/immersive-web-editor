@@ -19,10 +19,13 @@ import { createRoot } from 'react-dom/client';
 import { css } from '@emotion/css';
 import { createOpencodeClient, type OpencodeClient } from '@opencode-ai/sdk/v2/client';
 import {
+  appendOptimisticUserMessage,
   applyMessageUpdate,
   applyPartDelta,
   applyPartRemoved,
   applyPartUpdate,
+  createOptimisticUserMessage,
+  reconcileSessionMessages,
   type SessionMessage,
 } from './opencode-session-state.js';
 import type {
@@ -453,6 +456,26 @@ function SessionPanel({ fixedSessionID }: { fixedSessionID: string }) {
     },
     [queryClient],
   );
+  const refreshSessionData = useCallback(
+    async (targetID: string) => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.sessionData(targetID) });
+    },
+    [queryClient],
+  );
+  const syncSessionMessages = useCallback(
+    async (targetID: string) => {
+      const res = await client.session.messages({ sessionID: targetID });
+      if (!res.data) return;
+      queryClient.setQueryData<SessionData>(
+        queryKeys.sessionData(targetID),
+        (current) => ({
+          ...(current ?? { messages: [], questions: [], permissions: [], children: [] }),
+          messages: reconcileSessionMessages(current?.messages ?? [], res.data as SessionMessage[]),
+        }),
+      );
+    },
+    [client, queryClient],
+  );
 
   const selectSession = useCallback(
     (target: Session) => {
@@ -574,7 +597,10 @@ function SessionPanel({ fixedSessionID }: { fixedSessionID: string }) {
         return;
       }
       if (ev.type === 'session.idle') {
-        if (ev.properties.sessionID === currentID) setRunning(false);
+        if (ev.properties.sessionID === currentID) {
+          setRunning(false);
+          void refreshSessionData(ev.properties.sessionID);
+        }
         return;
       }
       if (ev.type === 'session.error') {
@@ -584,6 +610,7 @@ function SessionPanel({ fixedSessionID }: { fixedSessionID: string }) {
           : ev.properties.error?.name ?? 'session error';
         setErr(message);
         setRunning(false);
+        if (ev.properties.sessionID) void refreshSessionData(ev.properties.sessionID);
         return;
       }
       if (ev.type === 'question.asked') {
@@ -622,7 +649,7 @@ function SessionPanel({ fixedSessionID }: { fixedSessionID: string }) {
       cancelled = true;
       ac.abort();
     };
-  }, [client, queryClient, updateSessionData]);
+  }, [client, queryClient, refreshSessionData, updateSessionData]);
 
   useEffect(() => {
     scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight });
@@ -635,6 +662,13 @@ function SessionPanel({ fixedSessionID }: { fixedSessionID: string }) {
         ...(text.trim() ? [{ type: 'text' as const, text: text.trim() }] : []),
         ...attachments.map(({ localID, ...part }) => part),
       ];
+      updateSessionData(sessionID, (data) => ({
+        ...data,
+        messages: appendOptimisticUserMessage(
+          data.messages,
+          createOptimisticUserMessage(sessionID, parts, resolvedModel),
+        ),
+      }));
       setInput('');
       setAttachments([]);
       setRunning(true);
@@ -645,12 +679,14 @@ function SessionPanel({ fixedSessionID }: { fixedSessionID: string }) {
           model: resolvedModel,
           parts,
         });
+        await syncSessionMessages(sessionID);
       } catch (e) {
         setErr((e as Error).message);
         setRunning(false);
+        await syncSessionMessages(sessionID);
       }
     },
-    [attachments, client, resolvedModel, sessionID],
+    [attachments, client, resolvedModel, sessionID, syncSessionMessages, updateSessionData],
   );
 
   const attachFiles = useCallback(async (files: FileList | File[]) => {
