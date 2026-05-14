@@ -48,6 +48,14 @@ function fsModulePath(file: string): string {
   return `/@fs/${normalizePath(resolve(file))}`;
 }
 
+function clientModulePath(client: string): string {
+  return isBareModuleId(client) ? client : fsModulePath(client);
+}
+
+function isBareModuleId(value: string): boolean {
+  return !value.startsWith('/') && !value.startsWith('.') && !/^[A-Za-z]:[\\/]/.test(value);
+}
+
 interface ConfigurableRecord {
   id: string;
   panel: string;
@@ -671,7 +679,7 @@ function renderEditorShell(wsToken: string, plugins: EditorPlugin[]): string {
     .filter((plugin) => plugin.client)
     .map((plugin) => ({
       name: plugin.name,
-      module: fsModulePath(plugin.client!),
+      module: clientModulePath(plugin.client!),
     }));
   const pluginCommands = plugins.flatMap((plugin) => plugin.commands ?? []);
 

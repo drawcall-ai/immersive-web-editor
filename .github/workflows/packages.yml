@@ -55,6 +55,9 @@ jobs:
                 types: './dist/index.d.ts',
                 import: './dist/index.js',
               },
+              './register': {
+                import: './dist/client/register.js',
+              },
             },
             'immersive-web-editor': {
               '.': {

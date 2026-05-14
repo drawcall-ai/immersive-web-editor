@@ -39,7 +39,9 @@ const STRIPPED_DOWNSTREAM = new Set([...HOP_BY_HOP, 'content-length', 'content-e
 
 const entryFile = fileURLToPath(import.meta.url);
 const here = dirname(entryFile);
-const clientEntry = resolve(here, 'client', entryFile.endsWith('.ts') ? 'register.tsx' : 'register.js');
+const clientEntry = entryFile.endsWith('.ts')
+  ? resolve(here, 'client', 'register.tsx')
+  : '@immersive-web-editor/ai/register';
 
 class OpencodeBackend {
   private proc: ChildProcessWithoutNullStreams | null = null;
