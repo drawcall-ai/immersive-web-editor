@@ -40,6 +40,9 @@ const editorShellEntry = resolve(
   'client',
   entryFile.endsWith('.ts') ? 'editor-shell.tsx' : 'editor-shell.js',
 );
+const editorShellImport = entryFile.endsWith('.ts')
+  ? fsModulePath(editorShellEntry)
+  : 'immersive-web-editor/dist/client/editor-shell.js';
 
 function fsModulePath(file: string): string {
   return `/@fs/${normalizePath(resolve(file))}`;
@@ -764,7 +767,7 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
     },
 
     load(id) {
-      if (id === `\0${EDITOR_SHELL_VIRTUAL_ID}`) return `import ${JSON.stringify(fsModulePath(editorShellEntry))};`;
+      if (id === `\0${EDITOR_SHELL_VIRTUAL_ID}`) return `import ${JSON.stringify(editorShellImport)};`;
       return null;
     },
 
