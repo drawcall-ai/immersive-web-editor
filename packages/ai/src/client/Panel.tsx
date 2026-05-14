@@ -18,10 +18,16 @@ import { QueryClientProvider, useMutation, useQuery, useQueryClient } from '@tan
 import { createRoot } from 'react-dom/client';
 import { css } from '@emotion/css';
 import { createOpencodeClient, type OpencodeClient } from '@opencode-ai/sdk/v2/client';
+import {
+  applyMessageUpdate,
+  applyPartDelta,
+  applyPartRemoved,
+  applyPartUpdate,
+  type SessionMessage,
+} from './opencode-session-state.js';
 import type {
   Event,
   FilePartInput,
-  Message,
   Part,
   PermissionRequest,
   Provider,
@@ -109,7 +115,6 @@ function renderMarkdown(src: string): string {
   return DOMPurify.sanitize(raw);
 }
 
-type SessionMessage = { info: Message; parts: Part[] };
 type AiStatus = { state: 'disabled' | 'starting' | 'ready' | 'error'; message?: string };
 type AttachedFile = FilePartInput & { localID: string };
 type ModelChoice = { providerID: string; modelID: string; label: string; attachment: boolean };
@@ -146,64 +151,6 @@ const queryKeys = {
 
 function createClient(): OpencodeClient {
   return createOpencodeClient({ baseUrl: `${window.location.origin}/__editor/oc` });
-}
-
-function applyPartUpdate(list: SessionMessage[], part: Part): SessionMessage[] {
-  const mid = (part as { messageID?: string }).messageID;
-  if (!mid) return list;
-  const idx = list.findIndex((m) => m.info.id === mid);
-  if (idx === -1) return list;
-  const msg = list[idx];
-  const pIdx = msg.parts.findIndex((p) => p.id === part.id);
-  const parts = pIdx === -1 ? [...msg.parts, part] : msg.parts.map((p, i) => (i === pIdx ? part : p));
-  const next = list.slice();
-  next[idx] = { ...msg, parts };
-  return next;
-}
-
-function applyPartDelta(
-  list: SessionMessage[],
-  delta: { messageID?: string; partID?: string; field?: string; delta?: unknown; sessionID?: string },
-): SessionMessage[] {
-  if (!delta.messageID || !delta.partID || typeof delta.field !== 'string') return list;
-  const idx = list.findIndex((m) => m.info.id === delta.messageID);
-  if (idx === -1) return list;
-
-  const msg = list[idx];
-  const pIdx = msg.parts.findIndex((p) => p.id === delta.partID);
-  const current = pIdx === -1
-    ? {
-      id: delta.partID,
-      sessionID: delta.sessionID ?? msg.info.sessionID,
-      messageID: delta.messageID,
-      type: 'text',
-    } as Part & Record<string, unknown>
-    : msg.parts[pIdx] as Part & Record<string, unknown>;
-  const previous = current[delta.field];
-  const value = typeof previous === 'string' && typeof delta.delta === 'string'
-    ? previous + delta.delta
-    : delta.delta;
-  const nextPart = { ...current, [delta.field]: value } as Part;
-  const parts = pIdx === -1 ? [...msg.parts, nextPart] : msg.parts.map((p, i) => (i === pIdx ? nextPart : p));
-  const next = list.slice();
-  next[idx] = { ...msg, parts };
-  return next;
-}
-
-function applyMessageUpdate(list: SessionMessage[], info: Message): SessionMessage[] {
-  const idx = list.findIndex((m) => m.info.id === info.id);
-  if (idx === -1) return [...list, { info, parts: [] }];
-  const next = list.slice();
-  next[idx] = { ...next[idx], info };
-  return next;
-}
-
-function applyPartRemoved(list: SessionMessage[], messageID: string, partID: string): SessionMessage[] {
-  const idx = list.findIndex((m) => m.info.id === messageID);
-  if (idx === -1) return list;
-  const next = list.slice();
-  next[idx] = { ...next[idx], parts: next[idx].parts.filter((p) => p.id !== partID) };
-  return next;
 }
 
 function formatTime(ts?: number): string {

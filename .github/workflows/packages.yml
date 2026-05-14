@@ -40,6 +40,9 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Test AI package
+        run: pnpm --filter @immersive-web-editor/ai test
+
       - name: Prepare packages for publishing
         run: |
           node <<'NODE'
