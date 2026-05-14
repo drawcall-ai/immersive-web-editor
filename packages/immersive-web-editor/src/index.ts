@@ -687,14 +687,7 @@ function renderEditorShell(wsToken: string, plugins: EditorPlugin[]): string {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Editor</title>
     <script id="__editor_config__" type="application/json">${JSON.stringify(config).replace(/</g, '\\u003c')}</script>
-    <script type="module">
-      try {
-        const RefreshRuntime = (await import('/@react-refresh')).default;
-        RefreshRuntime.injectIntoGlobalHook(window);
-      } catch {
-        // Non-React apps do not expose /@react-refresh. The no-op globals keep
-        // modules transformed by @vitejs/plugin-react happy.
-      }
+    <script>
       window.$RefreshReg$ = window.$RefreshReg$ || (() => {});
       window.$RefreshSig$ = window.$RefreshSig$ || (() => (type) => type);
       window.__vite_plugin_react_preamble_installed__ = true;
