@@ -59,7 +59,18 @@ export const styles = {
   }),
   configCustomField: css({ minWidth: 0 }),
   configMissingField: css({ color: '#52525b', fontSize: 12 }),
+  previewFrameHost: css({ position: 'relative', width: '100%', height: '100%', minWidth: 0, minHeight: 0, background: '#ffffff' }),
   iframe: css({ width: '100%', height: '100%', border: 'none', background: '#ffffff', display: 'block' }),
+  previewLoading: css({
+    position: 'absolute',
+    inset: 0,
+    display: 'grid',
+    placeItems: 'center',
+    background: 'rgba(255, 255, 255, 0.76)',
+    color: '#52525b',
+    pointerEvents: 'none',
+  }),
+  spinner: css({ animation: 'iwe-spin 900ms linear infinite', '@keyframes iwe-spin': { to: { transform: 'rotate(360deg)' } } }),
   slotBody: css({ width: '100%', height: '100%', minWidth: 0, minHeight: 0, overflow: 'hidden', background: '#ffffff' }),
   paletteBackdrop: css({
     position: 'fixed',

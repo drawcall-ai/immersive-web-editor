@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, renameSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -23,16 +23,25 @@ export interface EditorPlugin {
   configureServer?(ctx: EditorPluginContext): void | Promise<void>;
 }
 
+export interface EditorBuildOptions {
+  enabled?: boolean;
+  previewUrl?: string;
+}
+
 export interface EditorOptions {
   plugins?: EditorPlugin[];
+  build?: EditorBuildOptions;
 }
 
 const EDITOR_PATH = '/editor';
 const CONFIGURABLES_PATH = '/__editor/configurables';
+const EDITOR_BUILD_HTML_ID = 'virtual:editor/index.html';
 const EDITOR_SHELL_VIRTUAL_ID = 'virtual:editor/shell';
+const EDITOR_CONFIG_VIRTUAL_ID = 'virtual:editor/config';
 const EDITOR_PLUGIN_VIRTUAL_PREFIX = 'virtual:editor/plugin/';
 const CONFIGURABLE_MODULE_ID = 'immersive-web-editor';
 const EDITOR_COMPONENT_QUERY = 'editor-component';
+const DEFAULT_PREVIEW_URL = '/?editor_preview=1';
 
 const entryFile = fileURLToPath(import.meta.url);
 const here = dirname(entryFile);
@@ -51,10 +60,6 @@ function fsModulePath(file: string): string {
 
 function clientModulePath(client: string): string {
   return isBareModuleId(client) ? client : fsModulePath(client);
-}
-
-function pluginClientModuleUrl(index: number): string {
-  return `/@id/__x00__${EDITOR_PLUGIN_VIRTUAL_PREFIX}${index}`;
 }
 
 function isBareModuleId(value: string): boolean {
@@ -679,30 +684,15 @@ function extractEditorComponents(
   return transformed;
 }
 
-function renderEditorShell(wsToken: string, plugins: EditorPlugin[]): string {
-  const pluginModules = plugins
-    .filter((plugin) => plugin.client)
-    .map((plugin, index) => ({
-      name: plugin.name,
-      module: pluginClientModuleUrl(index),
-    }));
-  const pluginCommands = plugins.flatMap((plugin) => plugin.commands ?? []);
-
-  // Skeleton HTML for /editor. Plugin middleware serves this with the wsToken
-  // templated in so @vite/client can open the HMR WS. No transformIndexHtml
-  // pass — /editor is served directly, not through Vite's module graph.
-  const config = {
-    wsToken,
-    pluginModules,
-    pluginCommands,
-  };
+function renderEditorShell(): string {
+  // Skeleton HTML for /editor. The shell reads runtime/editor-plugin wiring from
+  // virtual:editor/config so dev and static builds use the same module graph.
   return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Editor</title>
-    <script id="__editor_config__" type="application/json">${JSON.stringify(config).replace(/</g, '\\u003c')}</script>
     <script>
       window.$RefreshReg$ = window.$RefreshReg$ || (() => {});
       window.$RefreshSig$ = window.$RefreshSig$ || (() => (type) => type);
@@ -715,6 +705,47 @@ function renderEditorShell(wsToken: string, plugins: EditorPlugin[]): string {
 `;
 }
 
+function renderEditorBuildShell(): string {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Editor</title>
+    <script>
+      window.$RefreshReg$ = window.$RefreshReg$ || (() => {});
+      window.$RefreshSig$ = window.$RefreshSig$ || (() => (type) => type);
+      window.__vite_plugin_react_preamble_installed__ = true;
+    </script>
+    <script type="module">
+      import '${EDITOR_SHELL_VIRTUAL_ID}';
+    </script>
+  </head>
+  <body></body>
+</html>
+`;
+}
+
+function renderEditorConfigModule(plugins: EditorPlugin[], previewUrl: string): string {
+  const pluginModules = plugins
+    .filter((plugin) => plugin.client)
+    .map((plugin, index) => ({
+      name: plugin.name,
+      importName: `plugin${index}`,
+      module: `${EDITOR_PLUGIN_VIRTUAL_PREFIX}${index}`,
+    }));
+  const pluginCommands = plugins.flatMap((plugin) => plugin.commands ?? []);
+
+  return `${pluginModules.map((plugin) => `import * as ${plugin.importName} from ${JSON.stringify(plugin.module)};`).join('\n')}
+
+export const previewUrl = ${JSON.stringify(previewUrl)};
+export const pluginModules = [
+${pluginModules.map((plugin) => `  { name: ${JSON.stringify(plugin.name)}, module: ${plugin.importName} },`).join('\n')}
+];
+export const pluginCommands = ${JSON.stringify(pluginCommands)};
+`;
+}
+
 export default function editorPlugin(options: EditorOptions = {}): Plugin {
   const plugins = options.plugins ?? [];
   const clientPlugins = plugins.filter((plugin) => plugin.client);
@@ -723,6 +754,8 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
   let wsToken = '';
   let transformCalls = 0;
   let root = process.cwd();
+  let buildOutDir = '';
+  let previewUrl = DEFAULT_PREVIEW_URL;
 
   function replaceFileConfigurables(file: string, records: ConfigurableRecord[]): void {
     const previous = configurablesByFile.get(file) ?? [];
@@ -737,11 +770,28 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
 
   return {
     name: 'immersive-web-editor',
-    apply: 'serve',
+    apply(_config, env) {
+      return env.command === 'serve' || options.build?.enabled === true;
+    },
     enforce: 'pre',
+
+    config(_config, env) {
+      if (env.command !== 'build' || options.build?.enabled !== true) return;
+      previewUrl = options.build.previewUrl ?? DEFAULT_PREVIEW_URL;
+      return {
+        build: {
+          rollupOptions: {
+            input: {
+              index: EDITOR_BUILD_HTML_ID,
+            },
+          },
+        },
+      };
+    },
 
     configResolved(config) {
       root = config.root;
+      buildOutDir = config.build.outDir;
       // Pin wsToken to a stable value. Vite's default rotates per-restart via
       // crypto.getRandomValues; because the Worker may kill+restart Vite while
       // multiple browser requests are in flight, a rotated token makes the
@@ -776,13 +826,17 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
     },
 
     resolveId(id) {
+      if (id === EDITOR_BUILD_HTML_ID) return EDITOR_BUILD_HTML_ID;
       if (id === EDITOR_SHELL_VIRTUAL_ID) return `\0${EDITOR_SHELL_VIRTUAL_ID}`;
+      if (id === EDITOR_CONFIG_VIRTUAL_ID) return `\0${EDITOR_CONFIG_VIRTUAL_ID}`;
       if (id.startsWith(EDITOR_PLUGIN_VIRTUAL_PREFIX)) return `\0${id}`;
       return null;
     },
 
     load(id) {
+      if (id === EDITOR_BUILD_HTML_ID) return renderEditorBuildShell();
       if (id === `\0${EDITOR_SHELL_VIRTUAL_ID}`) return `import ${JSON.stringify(editorShellImport)};`;
+      if (id === `\0${EDITOR_CONFIG_VIRTUAL_ID}`) return renderEditorConfigModule(plugins, previewUrl);
       if (id.startsWith(`\0${EDITOR_PLUGIN_VIRTUAL_PREFIX}`)) {
         const index = Number(id.slice(`\0${EDITOR_PLUGIN_VIRTUAL_PREFIX}`.length));
         const plugin = clientPlugins[index];
@@ -790,6 +844,16 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
         return `export * from ${JSON.stringify(clientModulePath(plugin.client))};`;
       }
       return null;
+    },
+
+    closeBundle() {
+      if (options.build?.enabled !== true || !buildOutDir) return;
+      const htmlSource = resolve(buildOutDir, EDITOR_BUILD_HTML_ID);
+      const htmlTarget = resolve(buildOutDir, 'index.html');
+      if (!existsSync(htmlSource)) return;
+      rmSync(htmlTarget, { force: true });
+      renameSync(htmlSource, htmlTarget);
+      rmSync(resolve(buildOutDir, 'virtual:editor'), { recursive: true, force: true });
     },
 
     async configureServer(server) {
@@ -854,7 +918,7 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
         if (pathname === EDITOR_PATH || pathname === `${EDITOR_PATH}/`) {
           res.setHeader('content-type', 'text/html; charset=utf-8');
           res.setHeader('cache-control', 'no-store');
-          res.end(renderEditorShell(wsToken, plugins));
+          res.end(renderEditorShell());
           return;
         }
         next();

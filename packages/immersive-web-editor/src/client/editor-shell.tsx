@@ -18,6 +18,7 @@ import Bot from 'lucide-react/dist/esm/icons/bot.js';
 import Box from 'lucide-react/dist/esm/icons/box.js';
 import FileText from 'lucide-react/dist/esm/icons/file-text.js';
 import FolderIcon from 'lucide-react/dist/esm/icons/folder.js';
+import Loader2 from 'lucide-react/dist/esm/icons/loader-2.js';
 import MonitorPlay from 'lucide-react/dist/esm/icons/monitor-play.js';
 import SlidersHorizontal from 'lucide-react/dist/esm/icons/sliders-horizontal.js';
 import Type from 'lucide-react/dist/esm/icons/type.js';
@@ -26,6 +27,11 @@ import { useKeybindings } from './commands';
 import { Palette } from './palette';
 import { styles } from './styles';
 import type { CommandOptions, FieldDescriptor } from './sdk';
+import {
+  pluginCommands as configuredPluginCommands,
+  pluginModules as configuredPluginModules,
+  previewUrl as configuredPreviewUrl,
+} from 'virtual:editor/config';
 import {
   isEditorComponentRef,
   isPreviewToEditorMessage,
@@ -64,8 +70,8 @@ interface InitialCommand {
 }
 
 interface EditorConfig {
-  wsToken: string;
-  pluginModules: Array<{ name: string; module: string }>;
+  previewUrl: string;
+  pluginModules: Array<{ name: string; module: EditorPluginModule }>;
   pluginCommands: InitialCommand[];
 }
 
@@ -230,7 +236,7 @@ function slotPath(parts: readonly (string | number | FolderSegment)[], leaf: Fie
 }
 
 function mountedFieldPath(mount: Pick<RuntimeMountedField, 'actions' | 'id' | 'order' | 'title'>): SlotPath {
-  if (mount.id.startsWith('editor:chat:session:')) {
+  if (mount.id.startsWith('editor:chat:')) {
     return slotPath(
       [
         folderSegment('', 'editor:chat', undefined, 'dropdown', { order: 10, size: 24 }),
@@ -327,20 +333,11 @@ function descriptorIcon(field: FieldDescriptor): ReactNode {
   return <Type aria-hidden />;
 }
 
-function readEditorConfig(): EditorConfig {
-  const fallback: EditorConfig = {
-    wsToken: '',
-    pluginModules: [],
-    pluginCommands: [],
-  };
-  const text = document.getElementById('__editor_config__')?.textContent;
-  if (!text) return fallback;
-  try {
-    return { ...fallback, ...JSON.parse(text) as Partial<EditorConfig> };
-  } catch {
-    return fallback;
-  }
-}
+const editorConfig: EditorConfig = {
+  previewUrl: configuredPreviewUrl || '/',
+  pluginModules: configuredPluginModules,
+  pluginCommands: configuredPluginCommands,
+};
 
 function FieldOutlet({
   fieldRegistration,
@@ -421,8 +418,21 @@ function FieldContributions() {
   );
 }
 
-function PreviewSlot({ onLoad, onUnload }: { onLoad: (w: Window) => void; onUnload: (w: Window) => void }) {
+function PreviewSlot({
+  onLoad,
+  onUnload,
+  src,
+}: {
+  onLoad: (w: Window) => void;
+  onUnload: (w: Window) => void;
+  src: string;
+}) {
   const [frame, setFrame] = useState<HTMLIFrameElement | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+  }, [src]);
 
   useEffect(() => {
     if (!frame) return;
@@ -431,6 +441,7 @@ function PreviewSlot({ onLoad, onUnload }: { onLoad: (w: Window) => void; onUnlo
     const notifyUnload = () => {
       if (!currentWindow || unloaded) return;
       unloaded = true;
+      setLoading(true);
       onUnload(currentWindow);
     };
     const detachWindowListeners = () => {
@@ -447,6 +458,7 @@ function PreviewSlot({ onLoad, onUnload }: { onLoad: (w: Window) => void; onUnlo
       currentWindow.addEventListener('beforeunload', notifyUnload);
       currentWindow.addEventListener('pagehide', notifyUnload);
       onLoad(currentWindow);
+      setLoading(false);
     };
     frame.addEventListener('load', onFrameLoad);
     return () => {
@@ -458,14 +470,21 @@ function PreviewSlot({ onLoad, onUnload }: { onLoad: (w: Window) => void; onUnlo
 
   return (
     <WorkbenchSlot path={previewSlotPath()}>
-      <iframe
-        ref={setFrame}
-        className={styles.iframe}
-        data-editor-slot-id={PANEL_PREVIEW}
-        src="/?editor_preview=1"
-        tabIndex={-1}
-        title="Preview"
-      />
+      <div className={styles.previewFrameHost}>
+        <iframe
+          ref={setFrame}
+          className={styles.iframe}
+          data-editor-slot-id={PANEL_PREVIEW}
+          src={src}
+          tabIndex={-1}
+          title="Preview"
+        />
+        {loading && (
+          <div className={styles.previewLoading} role="status" aria-label="Loading preview">
+            <Loader2 aria-hidden className={styles.spinner} size={22} />
+          </div>
+        )}
+      </div>
     </WorkbenchSlot>
   );
 }
@@ -507,7 +526,6 @@ interface EditorPluginModule {
   activate?: (editor: EditorPluginApi) => void | (() => void);
 }
 
-const importPluginScript = new Function('src', 'return import(src)') as (src: string) => Promise<EditorPluginModule>;
 const importEditorComponent = new Function('src', 'return import(src)') as (src: string) => Promise<Record<string, unknown>>;
 
 async function hydrateFieldDescriptor(value: unknown): Promise<unknown> {
@@ -556,6 +574,7 @@ function createPluginApi(source: ContributionSource): EditorPluginApi {
         actions: opts.actions,
         mount: opts.mount,
         source,
+        order: opts.id === 'editor:chat:loading' ? -1 : undefined,
       });
       return () => {
         const mount = mountedFieldStore.mounts.get(opts.id);
@@ -577,7 +596,7 @@ function createPluginApi(source: ContributionSource): EditorPluginApi {
 
 function EditorShell() {
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const config = useMemo(readEditorConfig, []);
+  const config = useMemo(() => editorConfig, []);
 
   useKeybindings();
 
@@ -643,13 +662,12 @@ function EditorShell() {
     for (const pluginModule of config.pluginModules) {
       const source = {};
       pluginSources.push(source);
-      void importPluginScript(pluginModule.module).then((plugin) => {
-        if (!alive) return;
-        const cleanup = plugin.activate?.(createPluginApi(source));
-        if (typeof cleanup === 'function') unsubs.push(cleanup);
-      }).catch((err) => {
-        console.error(`[editor] Failed to load plugin "${pluginModule.name}".`, err);
-      });
+      try {
+        const cleanup = pluginModule.module.activate?.(createPluginApi(source));
+        if (alive && typeof cleanup === 'function') unsubs.push(cleanup);
+      } catch (err) {
+        console.error(`[editor] Failed to activate plugin "${pluginModule.name}".`, err);
+      }
     }
 
     return () => {
@@ -662,7 +680,7 @@ function EditorShell() {
   return (
     <div className={styles.shell}>
       <WorkbenchEditor root={workbenchRoot}>
-        <PreviewSlot onLoad={handleIframeLoad} onUnload={handleIframeUnload} />
+        <PreviewSlot src={config.previewUrl} onLoad={handleIframeLoad} onUnload={handleIframeUnload} />
         <FieldContributions />
         <RuntimeMountedFields />
       </WorkbenchEditor>

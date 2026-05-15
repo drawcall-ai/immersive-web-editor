@@ -42,6 +42,7 @@ import type {
 
 const DEFAULT_MODEL_PROVIDER = 'opencode';
 const DEFAULT_MODEL_ID = 'big-pickle';
+const CHAT_LOADING_SLOT_ID = 'editor:chat:loading';
 
 const panelStyles = {
   root: css({
@@ -56,11 +57,12 @@ const panelStyles = {
     fontSize: 12,
     fontFamily: 'ui-sans-serif, -apple-system, BlinkMacSystemFont, "Inter", "SF Pro Text", system-ui, sans-serif',
     '& button, & textarea, & select': { font: 'inherit' },
-    '& .dc-chat': { flex: '1 1 0', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#ffffff' },
+    '& .dc-chat': { position: 'relative', flex: '1 1 0', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#ffffff' },
     '& .dc-child-strip': { flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderBottom: '1px solid #e4e4e7', color: '#a1a1aa', overflowX: 'auto' },
     '& .dc-child-strip button': { border: '1px solid #e4e4e7', background: '#f8fafc', color: '#09090b', borderRadius: 999, padding: '3px 8px', fontSize: 11, whiteSpace: 'nowrap', cursor: 'pointer' },
     '& .dc-messages': { flex: '1 1 auto', minHeight: 0, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 },
     '& .dc-empty-state, & .dc-empty-card': { display: 'grid', placeItems: 'center', color: '#a1a1aa' },
+    '& .dc-empty-state': { gap: 8, minHeight: 120 },
     '& .dc-empty-card': { alignSelf: 'center', gap: 6, maxWidth: 300, padding: 18, textAlign: 'center', border: '1px solid #e4e4e7', borderRadius: 8, background: '#ffffff' },
     '& .dc-empty-title': { color: '#09090b', fontWeight: 650 },
     '& .dc-alert': { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid #fecaca', borderRadius: 6, background: '#fef2f2', color: '#991b1b' },
@@ -106,6 +108,8 @@ const panelStyles = {
     '& .dc-model-select select': { minWidth: 0, maxWidth: 260, border: '1px solid #e4e4e7', borderRadius: 6, background: '#ffffff', color: '#09090b', padding: '4px 24px 4px 7px' },
     '& .dc-send': { marginLeft: 'auto', border: 0, borderRadius: 7, background: '#111827', color: '#ffffff', display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 30, padding: '0 10px', cursor: 'pointer' },
     '& .dc-send:disabled': { opacity: 0.45, cursor: 'not-allowed' },
+    '& .dc-connection-overlay': { position: 'absolute', inset: 0, zIndex: 5, display: 'grid', placeItems: 'center', background: 'rgba(255, 255, 255, 0.78)', color: '#52525b', pointerEvents: 'none' },
+    '& .dc-connection-card': { display: 'inline-grid', placeItems: 'center', gap: 8, padding: 14, fontSize: 12 },
     '& .spin': { animation: 'iwe-ai-spin 900ms linear infinite' },
     '@keyframes iwe-ai-spin': { to: { transform: 'rotate(360deg)' } },
   }),
@@ -321,6 +325,34 @@ export function Panel({ editor }: { editor: EditorApi }) {
   }, [createSessionMutation.isPending, newChat, sessions.length, sessionsQuery.isLoading]);
 
   useEffect(() => {
+    if (sessions.length > 0) {
+      editor.removeField(CHAT_LOADING_SLOT_ID);
+      return undefined;
+    }
+
+    editor.addField({
+      id: CHAT_LOADING_SLOT_ID,
+      title: 'Chat',
+      actions: [
+        {
+          id: 'new',
+          label: creatingSession ? 'Creating session' : 'Create session',
+          icon: MessageSquarePlus,
+          disabled: creatingSession,
+          run: newChat,
+        },
+      ],
+      mount(container) {
+        const root = createRoot(container);
+        root.render(<ChatLoadingPanel />);
+        return () => queueMicrotask(() => root.unmount());
+      },
+    });
+
+    return () => editor.removeField(CHAT_LOADING_SLOT_ID);
+  }, [creatingSession, editor, newChat, sessions.length]);
+
+  useEffect(() => {
     const nextSlotIds = new Set<string>();
     for (const session of sessions) {
       const slotID = `editor:chat:session:${session.id}`;
@@ -374,6 +406,36 @@ export function Panel({ editor }: { editor: EditorApi }) {
   }, [editor]);
 
   return err ? <div className="dc-controller-error">{err}</div> : null;
+}
+
+function ChatLoadingPanel() {
+  return (
+    <div className={`dc-root dc-root-slot dc-ui ${panelStyles.root}`}>
+      <main className="dc-chat">
+        <div className="dc-messages">
+          <div className="dc-empty-state">
+            <Loader2 className="spin" size={18} />
+          </div>
+        </div>
+        <div className="dc-composer-shell">
+          <div className="dc-composer">
+            <textarea placeholder="Describe a change..." rows={2} disabled />
+            <div className="dc-composer-toolbar">
+              <IconButton title="Attach files" disabled>
+                <ImagePlus size={15} />
+              </IconButton>
+              <ModelSelect value={modelValue(DEFAULT_MODEL_PROVIDER, DEFAULT_MODEL_ID)} onChange={() => undefined} models={[]} />
+              <button className="dc-send" disabled>
+                <Send size={14} />
+                <span>Send</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <ConnectionOverlay />
+      </main>
+    </div>
+  );
 }
 
 function SessionPanel({ fixedSessionID }: { fixedSessionID: string }) {
@@ -446,7 +508,7 @@ function SessionPanel({ fixedSessionID }: { fixedSessionID: string }) {
     }
     return splitModelValue(preferredModelValue(providerCatalog));
   }, [modelChoices, providerCatalog, selectedModel]);
-  const loading = sessionsQuery.isLoading || (!!sessionID && sessionDataQuery.isLoading);
+  const loading = sessionsQuery.isLoading || providersQuery.isLoading || (!!sessionID && sessionDataQuery.isLoading);
   const updateSessionData = useCallback(
     (targetID: string, updater: (data: SessionData) => SessionData) => {
       queryClient.setQueryData<SessionData>(
@@ -810,7 +872,9 @@ function SessionPanel({ fixedSessionID }: { fixedSessionID: string }) {
     [client, sessionID, updateSessionData],
   );
 
-  const canSend = !!sessionID && connected && !running && (!!input.trim() || attachments.length > 0);
+  const connectionError = aiStatus.state === 'error' || aiStatus.state === 'disabled';
+  const connecting = !connectionError && (aiStatus.state !== 'ready' || !connected || loading);
+  const canSend = !!sessionID && connected && aiStatus.state === 'ready' && !running && (!!input.trim() || attachments.length > 0);
 
   return (
     <div className={`dc-root dc-root-slot dc-ui ${panelStyles.root}`}>
@@ -858,6 +922,12 @@ function SessionPanel({ fixedSessionID }: { fixedSessionID: string }) {
             <div className="dc-alert">
               <span>{err}</span>
               <button onClick={() => setErr(null)}><X size={13} /></button>
+            </div>
+          )}
+
+          {connectionError && aiStatus.message && (
+            <div className="dc-alert">
+              <span>{aiStatus.message}</span>
             </div>
           )}
 
@@ -934,7 +1004,18 @@ function SessionPanel({ fixedSessionID }: { fixedSessionID: string }) {
             </div>
           </div>
         </div>
+        {connecting && <ConnectionOverlay />}
       </main>
+    </div>
+  );
+}
+
+function ConnectionOverlay() {
+  return (
+    <div className="dc-connection-overlay" role="status" aria-label="Connecting chat">
+      <div className="dc-connection-card">
+        <Loader2 className="spin" size={20} />
+      </div>
     </div>
   );
 }
