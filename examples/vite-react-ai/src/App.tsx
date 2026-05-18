@@ -19,39 +19,44 @@ export function App() {
     title: val("Hello World"),
     paused: val(false, bool()),
     background: val("#000000", color()),
-    exposure: val(2, number(0.82, { min: 0, max: 2, step: 0.01 })),
+    exposure: val(2, number({ default: 0.82, min: 0, max: 2, step: 0.01 })),
     camera: {
-      position: val([0,0,0], position3D([0, 3, 8])),
-      target: val([0, 1, 0], position3D([0, 1, 0])),
+      position: val([0,0,0], position3D({ default: [0, 3, 8] })),
+      target: val([0, 1, 0], position3D({ default: [0, 1, 0] })),
     },
   });
 
   const hero = config('Hero NPC', {
     name: val("wtf!"),
-    title: val(null, optional(string("The Cartographer"))),
-    health: val(20, number(100, { min: 0, max: 100, step: 1 })),
-    mood: val("calm", mood("alert")),
+    title: val(null, optional({ item: string({ default: "The Cartographer" }) })),
+    health: val(20, number({ default: 100, min: 0, max: 100, step: 1 })),
+    mood: val("calm", mood({ default: "alert" })),
     visible: val(true, bool()),
     transform: {
-      position: val([-5.4,-3.2,0], position3D([-1.4, 0.8, 0])),
-      rotation: val([0, 18, 0], rotation3D([0, 0, 0])),
-      scale: val([1.1, 1.1, 1.1], scale3D([1, 1, 1])),
+      position: val([-5.4,-3.2,0], position3D({ default: [-1.4, 0.8, 0] })),
+      rotation: val([0, 18, 0], rotation3D({ default: [0, 0, 0] })),
+      scale: val([1.1, 1.1, 1.1], scale3D({ default: [1, 1, 1] })),
     },
     material: {
-      color: val("#df2a2a", color("#65d6ad")),
-      glow: val(0.56, number(0.5, { min: 0, max: 1, step: 0.01 })),
+      color: val("#df2a2a", color({ default: "#65d6ad" })),
+      glow: val(0.56, number({ default: 0.5, min: 0, max: 1, step: 0.01 })),
     },
   });
 
   const wave = config('Enemy Wave', {
     spawnEnabled: val(true, bool()),
-    spawnPoint: val([2.2,-1.6,-1], position3D([2, 0, 0])),
-    enemies: val([{"name":"Enemy","health":50,"position":[0,0,0],"color":"#ff5555"},{"name":"Enemy 3","health":50,"position":[4,0,0],"color":"#ff5555"}], array(object({
-      name: string("Enemy"),
-      health: number(50, { min: 0, max: 100, step: 1 }),
-      position: position3D([0, 0, 0]),
-      color: color("#ff5555"),
-    }), { itemLabel: 'Enemy' })),
+    spawnPoint: val([2.2,-1.6,-1], position3D({ default: [2, 0, 0] })),
+    enemies: val([{"name":"Enemy","health":50,"position":[0,0,0],"color":"#ff5555"},{"name":"Enemy 3","health":50,"position":[4,0,0],"color":"#ff5555"}], array({
+      item: object({
+        shape: {
+          name: string({ default: "Enemy" }),
+          health: number({ default: 50, min: 0, max: 100, step: 1 }),
+          position: position3D({ default: [0, 0, 0] }),
+          color: color({ default: "#ff5555" }),
+        },
+      }),
+      itemLabel: 'Enemy',
+    })),
   });
 
   const heroTransform = {

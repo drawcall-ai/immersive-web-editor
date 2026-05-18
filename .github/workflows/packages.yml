@@ -53,6 +53,12 @@ jobs:
             throw new Error(`Tag ${process.env.GITHUB_REF_NAME} is not a semver version tag`);
           }
           const publishExports = {
+            adapter: {
+              '.': {
+                types: './dist/index.d.ts',
+                import: './dist/index.js',
+              },
+            },
             ai: {
               '.': {
                 types: './dist/index.d.ts',
@@ -71,6 +77,10 @@ jobs:
               './editor-shell': {
                 import: './dist/client/editor-shell.js',
               },
+              './editor-components': {
+                types: './dist/editor-components.d.ts',
+                import: './dist/editor-components.js',
+              },
             },
             ui: {
               '.': {
@@ -86,7 +96,7 @@ jobs:
             json.version = version;
             json.exports = exports;
             if (json.dependencies) {
-              for (const name of ['@immersive-web-editor/ui', 'immersive-web-editor']) {
+              for (const name of ['@immersive-web-editor/adapter', '@immersive-web-editor/ui', 'immersive-web-editor']) {
                 if (json.dependencies[name]?.startsWith('workspace:')) {
                   json.dependencies[name] = version;
                 }
@@ -101,6 +111,10 @@ jobs:
 
       - name: Publish UI package
         working-directory: packages/ui
+        run: pnpm publish --access public --no-git-checks --tag latest
+
+      - name: Publish adapter package
+        working-directory: packages/adapter
         run: pnpm publish --access public --no-git-checks --tag latest
 
       - name: Publish editor package

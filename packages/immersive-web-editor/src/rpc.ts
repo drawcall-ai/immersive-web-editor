@@ -28,15 +28,39 @@ export interface FieldRegistration {
   field: SerializedFieldDescriptor;
 }
 
-export type PreviewToEditorMessage =
-  | {
-    type: 'editor:addField';
-    field: FieldRegistration;
-  }
-  | {
-    type: 'editor:removeField';
-    id: string;
-  };
+export interface AddFieldMessage {
+  type: 'editor:addField';
+  field: FieldRegistration;
+}
+
+export type PreviewToEditorMessage = AddFieldMessage;
+
+export const EDITOR_PUBLIC_FILES_PATH = '/__editor/public-files';
+export const DEFAULT_SCHEMA_COMPONENT_MODULE = 'immersive-web-editor/default-schema-components';
+
+export interface PublicFile {
+  fileName: string;
+  url: string;
+  size: number;
+  mtimeMs: number;
+}
+
+export interface ListPublicFilesResponse {
+  files: PublicFile[];
+}
+
+export interface UploadPublicFileResponse {
+  ok: true;
+  fileName: string;
+  url: string;
+  contentType: string;
+}
+
+export interface EditorApiErrorResponse {
+  error: string;
+}
+
+export type EditorApiResponse<T> = T | EditorApiErrorResponse;
 
 export function isJsonValue(value: unknown): value is JsonValue {
   if (
@@ -79,9 +103,40 @@ export function isFieldRegistration(value: unknown): value is FieldRegistration 
     && isSerializedFieldDescriptor(value.field);
 }
 
+export function addFieldMessage(field: FieldRegistration): AddFieldMessage {
+  return { type: 'editor:addField', field };
+}
+
 export function isPreviewToEditorMessage(value: unknown): value is PreviewToEditorMessage {
   if (!isObject(value) || typeof value.type !== 'string') return false;
   if (value.type === 'editor:addField') return isFieldRegistration(value.field);
-  if (value.type === 'editor:removeField') return typeof value.id === 'string';
   return false;
+}
+
+export function isPublicFile(value: unknown): value is PublicFile {
+  return isObject(value)
+    && typeof value.fileName === 'string'
+    && typeof value.url === 'string'
+    && typeof value.size === 'number'
+    && Number.isFinite(value.size)
+    && typeof value.mtimeMs === 'number'
+    && Number.isFinite(value.mtimeMs);
+}
+
+export function isListPublicFilesResponse(value: unknown): value is ListPublicFilesResponse {
+  return isObject(value)
+    && Array.isArray(value.files)
+    && value.files.every(isPublicFile);
+}
+
+export function isUploadPublicFileResponse(value: unknown): value is UploadPublicFileResponse {
+  return isObject(value)
+    && value.ok === true
+    && typeof value.fileName === 'string'
+    && typeof value.url === 'string'
+    && typeof value.contentType === 'string';
+}
+
+export function editorApiError(message: string): EditorApiErrorResponse {
+  return { error: message };
 }

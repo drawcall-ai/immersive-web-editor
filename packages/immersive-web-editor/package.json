@@ -17,6 +17,10 @@
     },
     "./editor-shell": {
       "import": "./dist/client/editor-shell.js"
+    },
+    "./editor-components": {
+      "types": "./dist/editor-components.d.ts",
+      "import": "./dist/editor-components.js"
     }
   },
   "files": [
@@ -26,7 +30,8 @@
   "scripts": {
     "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
     "build:server": "tsc -p tsconfig.build.json",
-    "dev": "tsc -p tsconfig.build.json --watch"
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "test": "node test/file-url-schema.test.mjs"
   },
   "publishConfig": {
     "access": "public"
@@ -47,8 +52,16 @@
   },
   "dependencies": {
     "@emotion/css": "^11.13.5",
+    "@immersive-web-editor/adapter": "workspace:*",
     "@immersive-web-editor/ui": "workspace:*",
+    "@pmndrs/handle": "^6.6.29",
+    "@pmndrs/pointer-events": "^6.6.29",
+    "@react-three/fiber": "^9.6.1",
+    "@react-three/handle": "^6.6.29",
+    "@react-three/xr": "^6.6.29",
     "cmdk": "^1.1.1",
-    "lucide-react": "^0.468.0"
+    "esbuild": "^0.27.3",
+    "lucide-react": "^0.468.0",
+    "three": "^0.184.0"
   }
 }

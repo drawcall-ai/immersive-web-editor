@@ -1,8 +1,11 @@
-import { existsSync, renameSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, relative, resolve, sep } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, readFileSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { basename, dirname, extname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { build as buildWithEsbuild, type Plugin as EsbuildPlugin } from 'esbuild';
 import type { Plugin, ViteDevServer } from 'vite';
+import type { EditorApiErrorResponse, ListPublicFilesResponse, PublicFile, UploadPublicFileResponse } from './rpc';
 
 export interface InitialCommand {
   id: string;
@@ -35,20 +38,105 @@ export interface EditorOptions {
 
 const EDITOR_PATH = '/editor';
 const CONFIGURABLES_PATH = '/__editor/configurables';
+const EDITOR_PUBLIC_FILES_PATH: typeof import('./rpc').EDITOR_PUBLIC_FILES_PATH = '/__editor/public-files';
 const EDITOR_BUILD_HTML_ID = 'virtual:editor/index.html';
 const EDITOR_SHELL_VIRTUAL_ID = 'virtual:editor/shell';
 const EDITOR_CONFIG_VIRTUAL_ID = 'virtual:editor/config';
 const EDITOR_PLUGIN_VIRTUAL_PREFIX = 'virtual:editor/plugin/';
+const EDITOR_STATIC_SHELL_PATH = '/__editor/static/editor-shell.js';
+const EDITOR_STATIC_SHARED_PREFIX = '/__editor/static/shared/';
+const EDITOR_STATIC_COMPONENT_PATH = '/__editor/static/editor-component.js';
 const CONFIGURABLE_MODULE_ID = 'immersive-web-editor';
 const EDITOR_COMPONENT_QUERY = 'editor-component';
 const DEFAULT_PREVIEW_URL = '/?editor_preview=1';
+const REACT_DEDUPE = ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime'];
+const STATIC_SHARED_IMPORTS = [
+  'react',
+  'react-dom',
+  'react-dom/client',
+  'react/jsx-runtime',
+  'react/jsx-dev-runtime',
+  'three',
+  '@immersive-web-editor/ui',
+  '@pmndrs/handle',
+  '@pmndrs/pointer-events',
+  '@react-three/fiber',
+  '@react-three/handle',
+  '@react-three/xr',
+] as const;
+const STATIC_SHARED_EXTERNALS = [...STATIC_SHARED_IMPORTS];
+const STATIC_NAMED_EXPORTS: Partial<Record<(typeof STATIC_SHARED_IMPORTS)[number], string[]>> = {
+  'react-dom': [
+    '__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE',
+    'createPortal',
+    'flushSync',
+    'preconnect',
+    'prefetchDNS',
+    'preinit',
+    'preinitModule',
+    'preload',
+    'preloadModule',
+    'requestFormReset',
+    'unstable_batchedUpdates',
+    'useFormState',
+    'useFormStatus',
+    'version',
+  ],
+  '@react-three/fiber': [
+    'Canvas',
+    'ReactThreeFiber',
+    '_roots',
+    'act',
+    'addAfterEffect',
+    'addEffect',
+    'addTail',
+    'advance',
+    'applyProps',
+    'buildGraph',
+    'context',
+    'createEvents',
+    'createPortal',
+    'createRoot',
+    'dispose',
+    'events',
+    'extend',
+    'flushGlobalEffects',
+    'flushSync',
+    'getRootState',
+    'invalidate',
+    'reconciler',
+    'unmountComponentAtNode',
+    'useFrame',
+    'useGraph',
+    'useInstanceHandle',
+    'useLoader',
+    'useStore',
+    'useThree',
+  ],
+};
 
 const entryFile = fileURLToPath(import.meta.url);
 const here = dirname(entryFile);
+const require = createRequire(import.meta.url);
+const REACT_ALIASES = [
+  { find: /^react$/, replacement: require.resolve('react') },
+  { find: /^react\/jsx-runtime$/, replacement: require.resolve('react/jsx-runtime') },
+  { find: /^react\/jsx-dev-runtime$/, replacement: require.resolve('react/jsx-dev-runtime') },
+  { find: /^react-dom$/, replacement: require.resolve('react-dom') },
+  { find: /^react-dom\/client$/, replacement: require.resolve('react-dom/client') },
+];
 const editorShellEntry = resolve(
   here,
   'client',
   entryFile.endsWith('.ts') ? 'editor-shell.tsx' : 'editor-shell.js',
+);
+const clientPublicEntry = resolve(
+  here,
+  entryFile.endsWith('.ts') || existsSync(resolve(here, 'client-public.ts'))
+    ? 'client-public.ts'
+    : existsSync(resolve(here, '../src/client-public.ts'))
+      ? '../src/client-public.ts'
+      : 'client-public.js',
 );
 const editorShellImport = entryFile.endsWith('.ts')
   ? fsModulePath(editorShellEntry)
@@ -60,6 +148,11 @@ function fsModulePath(file: string): string {
 
 function clientModulePath(client: string): string {
   return isBareModuleId(client) ? client : fsModulePath(client);
+}
+
+function clientBundleModulePath(client: string, root: string): string {
+  if (isBareModuleId(client)) return client;
+  return resolve(root, client);
 }
 
 function isBareModuleId(value: string): boolean {
@@ -542,6 +635,10 @@ function sendJson(res: ServerResponse, statusCode: number, value: unknown): void
   res.end(JSON.stringify(value));
 }
 
+function editorApiError(message: string): EditorApiErrorResponse {
+  return { error: message };
+}
+
 function publicConfigurable(record: ConfigurableRecord): object {
   return {
     id: record.id,
@@ -556,12 +653,121 @@ function publicConfigurable(record: ConfigurableRecord): object {
 }
 
 function readRequestBody(req: IncomingMessage): Promise<string> {
+  return readRequestBuffer(req).then((body) => body.toString('utf8'));
+}
+
+function readRequestBuffer(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolveBody, reject) => {
     const chunks: Buffer[] = [];
     req.on('data', (chunk: Buffer) => chunks.push(chunk));
-    req.on('end', () => resolveBody(Buffer.concat(chunks).toString('utf8')));
+    req.on('end', () => resolveBody(Buffer.concat(chunks)));
     req.on('error', reject);
   });
+}
+
+interface UploadedEditorFile {
+  fileName: string;
+  contentType: string;
+  data: Buffer;
+}
+
+function editorPublicDir(server: ViteDevServer, root: string): string | null {
+  const configuredPublicDir = (server.config as { publicDir?: string | false }).publicDir;
+  if (configuredPublicDir === false) return null;
+  return typeof configuredPublicDir === 'string' && configuredPublicDir.length > 0
+    ? configuredPublicDir
+    : resolve(root, 'public');
+}
+
+function listPublicFiles(publicDir: string): PublicFile[] {
+  if (!existsSync(publicDir)) return [];
+  const files: PublicFile[] = [];
+  const visit = (dir: string, prefix = '') => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === '.DS_Store') continue;
+      const absolute = resolve(dir, entry.name);
+      const fileName = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        visit(absolute, fileName);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      const stats = statSync(absolute);
+      files.push({
+        fileName,
+        url: `/${fileName.split('/').map((part) => encodeURIComponent(part)).join('/')}`,
+        size: stats.size,
+        mtimeMs: stats.mtimeMs,
+      });
+    }
+  };
+  visit(publicDir);
+  return files.sort((a, b) => a.fileName.localeCompare(b.fileName, undefined, { numeric: true, sensitivity: 'base' }));
+}
+
+function parseMultipartUpload(req: IncomingMessage, body: Buffer): UploadedEditorFile {
+  const contentType = String(req.headers['content-type'] ?? '');
+  const boundaryMatch = /(?:^|;)\s*boundary=(?:"([^"]+)"|([^;]+))/i.exec(contentType);
+  const boundary = boundaryMatch?.[1] ?? boundaryMatch?.[2];
+  if (!boundary) throw new Error('Upload requires multipart/form-data.');
+
+  const boundaryBuffer = Buffer.from(`--${boundary}`);
+  let cursor = body.indexOf(boundaryBuffer);
+  while (cursor !== -1) {
+    let partStart = cursor + boundaryBuffer.length;
+    if (body.subarray(partStart, partStart + 2).toString('utf8') === '--') break;
+    if (body.subarray(partStart, partStart + 2).toString('utf8') === '\r\n') partStart += 2;
+
+    const nextBoundary = body.indexOf(boundaryBuffer, partStart);
+    if (nextBoundary === -1) break;
+
+    let part = body.subarray(partStart, nextBoundary);
+    if (part.length >= 2 && part.subarray(part.length - 2).toString('utf8') === '\r\n') {
+      part = part.subarray(0, part.length - 2);
+    }
+
+    const headerEnd = part.indexOf(Buffer.from('\r\n\r\n'));
+    if (headerEnd !== -1) {
+      const headers = part.subarray(0, headerEnd).toString('utf8');
+      const data = part.subarray(headerEnd + 4);
+      const disposition = /^content-disposition:\s*(.+)$/im.exec(headers)?.[1] ?? '';
+      const fileName = dispositionParameter(disposition, 'filename');
+      if (fileName) {
+        return {
+          fileName,
+          contentType: /^content-type:\s*(.+)$/im.exec(headers)?.[1]?.trim() ?? 'application/octet-stream',
+          data,
+        };
+      }
+    }
+
+    cursor = nextBoundary;
+  }
+
+  throw new Error('Upload did not include a file.');
+}
+
+function dispositionParameter(disposition: string, key: string): string | null {
+  const match = new RegExp(`${key}="([^"]*)"`).exec(disposition);
+  if (!match) return null;
+  return match[1].replace(/\\"/g, '"').trim() || null;
+}
+
+function publicUploadFileName(originalFileName: string, publicDir: string): string {
+  const raw = basename(originalFileName).replace(/\0/g, '').trim();
+  const extension = extname(raw).replace(/[^A-Za-z0-9.]/g, '').slice(0, 32);
+  const stem = basename(raw, extname(raw))
+    .replace(/[^A-Za-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    || 'upload';
+  const baseName = `${stem}${extension}`;
+  if (!existsSync(resolve(publicDir, baseName))) return baseName;
+
+  for (let index = 1; index < 10_000; index++) {
+    const candidate = `${stem}-${index}${extension}`;
+    if (!existsSync(resolve(publicDir, candidate))) return candidate;
+  }
+  throw new Error('Could not choose a unique file name.');
 }
 
 function parseReplacementBody(req: IncomingMessage, body: string): string {
@@ -620,7 +826,8 @@ function findImportInsertionIndex(code: string): number {
 }
 
 function editorComponentUrl(file: string, index: number): string {
-  return `/@fs/${normalizePath(file)}?${EDITOR_COMPONENT_QUERY}=${index}`;
+  const params = new URLSearchParams({ file, index: String(index) });
+  return `${EDITOR_STATIC_COMPONENT_PATH}?${params.toString()}`;
 }
 
 interface EditorComponentExtraction {
@@ -662,21 +869,21 @@ function extractEditorComponents(
 
   let transformed = code;
   const declarations: string[] = [];
+  const includeDeclarations = options.exportIndex !== undefined;
 
   for (let index = matches.length - 1; index >= 0; index--) {
     const match = matches[index]!;
     const name = `__editor_component_${index}`;
-    declarations.unshift(`const ${name} = ${match.source};`);
+    if (includeDeclarations) declarations.unshift(`const ${name} = ${match.source};`);
     transformed = `${transformed.slice(0, match.start)}${JSON.stringify({
       module: editorComponentUrl(file, index),
       exportName: name,
     })}${transformed.slice(match.end)}`;
   }
 
-  const insertAt = findImportInsertionIndex(transformed);
-  transformed = `${transformed.slice(0, insertAt)}\n${declarations.join('\n')}\n${transformed.slice(insertAt)}`;
-
-  if (options.exportIndex !== undefined) {
+  if (includeDeclarations) {
+    const insertAt = findImportInsertionIndex(transformed);
+    transformed = `${transformed.slice(0, insertAt)}\n${declarations.join('\n')}\n${transformed.slice(insertAt)}`;
     const name = `__editor_component_${options.exportIndex}`;
     transformed += `\nexport { ${name} };\n`;
   }
@@ -698,11 +905,23 @@ function renderEditorShell(): string {
       window.$RefreshSig$ = window.$RefreshSig$ || (() => (type) => type);
       window.__vite_plugin_react_preamble_installed__ = true;
     </script>
-    <script type="module" src="/@id/__x00__${EDITOR_SHELL_VIRTUAL_ID}"></script>
+    <script type="importmap">
+      ${JSON.stringify({ imports: staticEditorImportMap() })}
+    </script>
+    <script type="module" src="${EDITOR_STATIC_SHELL_PATH}"></script>
   </head>
   <body></body>
 </html>
 `;
+}
+
+function staticEditorImportMap(): Record<string, string> {
+  return {
+    ...Object.fromEntries(
+    STATIC_SHARED_IMPORTS.map((id) => [id, `${EDITOR_STATIC_SHARED_PREFIX}${encodeURIComponent(id)}.js`]),
+    ),
+    'three/': `${EDITOR_STATIC_SHARED_PREFIX}three/`,
+  };
 }
 
 function renderEditorBuildShell(): string {
@@ -746,6 +965,249 @@ export const pluginCommands = ${JSON.stringify(pluginCommands)};
 `;
 }
 
+async function buildStaticEditorShell(
+  root: string,
+  plugins: EditorPlugin[],
+  clientPlugins: EditorPlugin[],
+  previewUrl: string,
+): Promise<string> {
+  const result = await buildWithEsbuild({
+    entryPoints: [editorShellEntry],
+    bundle: true,
+    write: false,
+    format: 'esm',
+    platform: 'browser',
+    target: 'es2022',
+    jsx: 'automatic',
+    sourcemap: 'inline',
+    external: STATIC_SHARED_EXTERNALS,
+    define: {
+      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV ?? 'development'),
+    },
+    plugins: [staticEditorVirtualModules(root, plugins, clientPlugins, previewUrl)],
+  });
+  const output = result.outputFiles[0];
+  if (!output) throw new Error('Static editor shell build produced no output.');
+  return output.text;
+}
+
+async function buildStaticSharedModule(root: string, id: string): Promise<string> {
+  if (!STATIC_SHARED_IMPORTS.includes(id as (typeof STATIC_SHARED_IMPORTS)[number]) && !id.startsWith('three/')) {
+    throw new Error(`Unknown static editor shared module "${id}".`);
+  }
+  const resolved = resolveStaticSharedModule(id);
+  const contents = id === 'react'
+    ? `import React from ${JSON.stringify(resolved)};
+export default React;
+export const {
+  Activity,
+  Children,
+  Component,
+  Fragment,
+  Profiler,
+  PureComponent,
+  StrictMode,
+  Suspense,
+  __CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE,
+  __COMPILER_RUNTIME,
+  act,
+  cache,
+  cacheSignal,
+  captureOwnerStack,
+  cloneElement,
+  createContext,
+  createElement,
+  createRef,
+  forwardRef,
+  isValidElement,
+  lazy,
+  memo,
+  startTransition,
+  unstable_useCacheRefresh,
+  use,
+  useActionState,
+  useCallback,
+  useContext,
+  useDebugValue,
+  useDeferredValue,
+  useEffect,
+  useEffectEvent,
+  useId,
+  useImperativeHandle,
+  useInsertionEffect,
+  useLayoutEffect,
+  useMemo,
+  useOptimistic,
+  useReducer,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+  version,
+} = React;`
+    : id === 'react/jsx-runtime'
+    ? `import runtime from ${JSON.stringify(resolved)};
+export const jsx = runtime.jsx;
+export const jsxs = runtime.jsxs;
+export const Fragment = runtime.Fragment;`
+    : id === 'react/jsx-dev-runtime'
+      ? `import runtime from ${JSON.stringify(resolved)};
+export const jsxDEV = runtime.jsxDEV;
+export const Fragment = runtime.Fragment;`
+      : id === 'react-dom/client'
+        ? `import runtime from ${JSON.stringify(resolved)}; export const createRoot = runtime.createRoot; export const hydrateRoot = runtime.hydrateRoot;`
+        : id in STATIC_NAMED_EXPORTS
+          ? namedSharedModuleContents(resolved, STATIC_NAMED_EXPORTS[id as keyof typeof STATIC_NAMED_EXPORTS]!)
+        : `export * from ${JSON.stringify(resolved)};`;
+  const result = await buildWithEsbuild({
+    stdin: {
+      contents,
+      sourcefile: `${id}.js`,
+      resolveDir: dirname(resolved),
+      loader: 'js',
+    },
+    bundle: true,
+    write: false,
+    format: 'esm',
+    platform: 'browser',
+    target: 'es2022',
+    jsx: 'automatic',
+    external: STATIC_SHARED_EXTERNALS.filter((external) => external !== id),
+    banner: { js: staticRequireShim(id) },
+    define: {
+      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV ?? 'development'),
+    },
+  });
+  const output = result.outputFiles[0];
+  if (!output) throw new Error(`Static editor shared module "${id}" produced no output.`);
+  return output.text;
+}
+
+function staticRequireShim(id: string): string {
+  const imports = id === 'react-dom/client'
+    ? ['react', 'react-dom']
+    : id === 'react-dom'
+      ? ['react']
+    : id === 'react/jsx-runtime' || id === 'react/jsx-dev-runtime'
+      ? ['react']
+    : id === '@immersive-web-editor/ui'
+      ? ['react', 'react-dom']
+    : id === '@react-three/fiber'
+      ? ['react', 'react-dom', 'react-dom/client', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'three']
+      : id === '@react-three/handle' || id === '@react-three/xr'
+        ? ['react', 'three']
+        : [];
+  if (imports.length === 0) return '';
+  const importLines = imports
+    .map((sharedId, index) => `import * as __editor_static_${index} from ${JSON.stringify(sharedId)};`)
+    .join('\n');
+  const cases = imports
+    .map((sharedId, index) => `    case ${JSON.stringify(sharedId)}: return __editor_static_${index};`)
+    .join('\n');
+  return `${importLines}
+const require = (moduleId) => {
+  switch (moduleId) {
+${cases}
+    default: throw new Error(\`Unsupported static editor require: \${moduleId}\`);
+  }
+};`;
+}
+
+function resolveStaticSharedModule(id: string): string {
+  if (id === 'three') return resolve(dirname(require.resolve('three')), 'three.module.js');
+  try {
+    return require.resolve(id);
+  } catch {
+    return fileURLToPath((import.meta as unknown as { resolve(specifier: string): string }).resolve(id));
+  }
+}
+
+function namedSharedModuleContents(resolved: string, names: string[]): string {
+  return `import runtime, * as namespace from ${JSON.stringify(resolved)};
+const api = Object.keys(namespace).some((key) => key !== 'default') ? namespace : runtime;
+export default runtime;
+${names.map((name) => `export const ${name} = api.${name};`).join('\n')}`;
+}
+
+async function buildStaticEditorComponent(file: string, index: number): Promise<string> {
+  const code = readFileSync(file, 'utf8');
+  const result = await buildWithEsbuild({
+    stdin: {
+      contents: extractEditorComponents(code, file, { exportIndex: index }),
+      sourcefile: file,
+      resolveDir: dirname(file),
+      loader: file.endsWith('.tsx') || file.endsWith('.jsx') ? 'tsx' : file.endsWith('.ts') ? 'ts' : 'js',
+    },
+    bundle: true,
+    write: false,
+    format: 'esm',
+    platform: 'browser',
+    target: 'es2022',
+    jsx: 'automatic',
+    sourcemap: 'inline',
+    external: STATIC_SHARED_EXTERNALS,
+    plugins: [staticEditorSourceAlias()],
+    define: {
+      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV ?? 'development'),
+    },
+  });
+  const output = result.outputFiles[0];
+  if (!output) throw new Error(`Static editor component "${file}" produced no output.`);
+  return output.text;
+}
+
+function staticEditorSourceAlias(): EsbuildPlugin {
+  return {
+    name: 'immersive-web-editor-source-alias',
+    setup(build) {
+      build.onResolve({ filter: new RegExp(`^${escapeRegExp(CONFIGURABLE_MODULE_ID)}$`) }, () => ({
+        path: clientPublicEntry,
+      }));
+    },
+  };
+}
+
+function staticEditorVirtualModules(
+  root: string,
+  plugins: EditorPlugin[],
+  clientPlugins: EditorPlugin[],
+  previewUrl: string,
+): EsbuildPlugin {
+  return {
+    name: 'immersive-web-editor-static-virtual-modules',
+    setup(build) {
+      build.onResolve({ filter: new RegExp(`^${escapeRegExp(EDITOR_CONFIG_VIRTUAL_ID)}$`) }, () => ({
+        path: EDITOR_CONFIG_VIRTUAL_ID,
+        namespace: 'editor-virtual',
+      }));
+      build.onResolve({ filter: new RegExp(`^${escapeRegExp(EDITOR_PLUGIN_VIRTUAL_PREFIX)}\\d+$`) }, (args) => ({
+        path: args.path,
+        namespace: 'editor-virtual',
+      }));
+      build.onLoad({ filter: /.*/, namespace: 'editor-virtual' }, (args) => {
+        if (args.path === EDITOR_CONFIG_VIRTUAL_ID) {
+          return {
+            contents: renderEditorConfigModule(plugins, previewUrl),
+            loader: 'js',
+            resolveDir: root,
+          };
+        }
+        if (args.path.startsWith(EDITOR_PLUGIN_VIRTUAL_PREFIX)) {
+          const index = Number(args.path.slice(EDITOR_PLUGIN_VIRTUAL_PREFIX.length));
+          const plugin = clientPlugins[index];
+          const client = plugin?.client;
+          return {
+            contents: client ? `export * from ${JSON.stringify(clientBundleModulePath(client, root))};` : '',
+            loader: 'js',
+            resolveDir: root,
+          };
+        }
+        return null;
+      });
+    },
+  };
+}
+
 export default function editorPlugin(options: EditorOptions = {}): Plugin {
   const plugins = options.plugins ?? [];
   const clientPlugins = plugins.filter((plugin) => plugin.client);
@@ -756,6 +1218,7 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
   let root = process.cwd();
   let buildOutDir = '';
   let previewUrl = DEFAULT_PREVIEW_URL;
+  const staticSharedModulePromises = new Map<string, Promise<string>>();
 
   function replaceFileConfigurables(file: string, records: ConfigurableRecord[]): void {
     const previous = configurablesByFile.get(file) ?? [];
@@ -768,6 +1231,19 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
     for (const record of records) configurablesById.set(record.id, record);
   }
 
+  function getStaticEditorShell(): Promise<string> {
+    return buildStaticEditorShell(root, plugins, clientPlugins, previewUrl);
+  }
+
+  function getStaticSharedModule(id: string): Promise<string> {
+    let promise = staticSharedModulePromises.get(id);
+    if (!promise) {
+      promise = buildStaticSharedModule(root, id);
+      staticSharedModulePromises.set(id, promise);
+    }
+    return promise;
+  }
+
   return {
     name: 'immersive-web-editor',
     apply(_config, env) {
@@ -776,9 +1252,19 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
     enforce: 'pre',
 
     config(_config, env) {
-      if (env.command !== 'build' || options.build?.enabled !== true) return;
+      const sharedConfig = {
+        resolve: {
+          alias: [
+            ...REACT_ALIASES,
+            { find: new RegExp(`^${escapeRegExp(CONFIGURABLE_MODULE_ID)}$`), replacement: clientPublicEntry },
+          ],
+          dedupe: REACT_DEDUPE,
+        },
+      };
+      if (env.command !== 'build' || options.build?.enabled !== true) return sharedConfig;
       previewUrl = options.build.previewUrl ?? DEFAULT_PREVIEW_URL;
       return {
+        ...sharedConfig,
         build: {
           rollupOptions: {
             input: {
@@ -866,9 +1352,91 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
         const url = req.url ?? '';
         const pathname = new URL(url, 'http://editor.local').pathname;
 
+        if (pathname === EDITOR_STATIC_SHELL_PATH) {
+          try {
+            res.setHeader('content-type', 'text/javascript; charset=utf-8');
+            res.setHeader('cache-control', 'no-store');
+            res.end(await getStaticEditorShell());
+          } catch (err) {
+            sendJson(res, 500, editorApiError((err as Error).message));
+          }
+          return;
+        }
+
+        if (pathname.startsWith(EDITOR_STATIC_SHARED_PREFIX) && pathname.endsWith('.js')) {
+          try {
+            const encoded = pathname.slice(EDITOR_STATIC_SHARED_PREFIX.length);
+            const decoded = decodeURIComponent(encoded);
+            const id = decoded.startsWith('three/') ? decoded : decoded.slice(0, -'.js'.length);
+            res.setHeader('content-type', 'text/javascript; charset=utf-8');
+            res.setHeader('cache-control', 'no-store');
+            res.end(await getStaticSharedModule(id));
+          } catch (err) {
+            sendJson(res, 500, editorApiError((err as Error).message));
+          }
+          return;
+        }
+
+        if (pathname === EDITOR_STATIC_COMPONENT_PATH) {
+          try {
+            const params = new URL(url, 'http://editor.local').searchParams;
+            const file = params.get('file');
+            const index = Number(params.get('index'));
+            if (!file || !Number.isInteger(index)) {
+              sendJson(res, 400, editorApiError('Static editor component requires file and index.'));
+              return;
+            }
+            res.setHeader('content-type', 'text/javascript; charset=utf-8');
+            res.setHeader('cache-control', 'no-store');
+            res.end(await buildStaticEditorComponent(file, index));
+          } catch (err) {
+            sendJson(res, 500, editorApiError((err as Error).message));
+          }
+          return;
+        }
+
         if (pathname === '/__editor/ping') {
           res.setHeader('content-type', 'text/plain');
           res.end(`pong ${Date.now()} wsToken=${wsToken} transformCalls=${transformCalls}`);
+          return;
+        }
+
+        if (pathname === EDITOR_PUBLIC_FILES_PATH) {
+          if (req.method === 'GET') {
+            const publicDir = editorPublicDir(server, root);
+            if (!publicDir) {
+              sendJson(res, 400, editorApiError('Vite publicDir is disabled.'));
+              return;
+            }
+            sendJson(res, 200, { files: listPublicFiles(publicDir) } satisfies ListPublicFilesResponse);
+            return;
+          }
+
+          if (req.method !== 'POST') {
+            sendJson(res, 405, editorApiError('Public file requests require GET or POST.'));
+            return;
+          }
+
+          try {
+            const publicDir = editorPublicDir(server, root);
+            if (!publicDir) {
+              sendJson(res, 400, editorApiError('Vite publicDir is disabled.'));
+              return;
+            }
+
+            const upload = parseMultipartUpload(req, await readRequestBuffer(req));
+            mkdirSync(publicDir, { recursive: true });
+            const fileName = publicUploadFileName(upload.fileName, publicDir);
+            writeFileSync(resolve(publicDir, fileName), upload.data);
+            sendJson(res, 200, {
+              ok: true,
+              fileName,
+              url: `/${encodeURIComponent(fileName)}`,
+              contentType: upload.contentType,
+            } satisfies UploadPublicFileResponse);
+          } catch (err) {
+            sendJson(res, 400, editorApiError((err as Error).message));
+          }
           return;
         }
 
@@ -897,8 +1465,6 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
             writeFileSync(record.file, next);
             const refreshed = collectConfigurables(next, record.file, root);
             replaceFileConfigurables(record.file, refreshed?.records ?? []);
-            server.moduleGraph.invalidateAll();
-            server.ws.send({ type: 'full-reload', path: '*' });
             const updatedRecord = configurablesById.get(record.id) ?? {
               ...record,
               source: replacement,
@@ -938,6 +1504,7 @@ export declare const config: typeof import('./configurable').config;
 export declare const configurable: typeof import('./configurable').configurable;
 export declare const defineField: typeof import('./configurable').defineField;
 export declare const euler: typeof import('./default-schemas').euler;
+export declare const fileUrl: typeof import('./default-schemas').fileUrl;
 export declare const json: typeof import('./default-schemas').json;
 export declare const number: typeof import('./default-schemas').number;
 export declare const object: typeof import('./default-schemas').object;
@@ -947,6 +1514,7 @@ export declare const rotation3D: typeof import('./default-schemas').rotation3D;
 export declare const scale3D: typeof import('./default-schemas').scale3D;
 export declare const schema: typeof import('./default-schemas').schema;
 export declare const string: typeof import('./default-schemas').string;
+export declare const transform3D: typeof import('./default-schemas').transform3D;
 export declare const val: typeof import('./configurable').val;
 export declare const vec2: typeof import('./default-schemas').vec2;
 export declare const vec3: typeof import('./default-schemas').vec3;
@@ -969,7 +1537,12 @@ export type {
   ArrayFieldOptions,
   BooleanFieldOptions,
   ColorFieldOptions,
+  FileUrlFieldOptions,
   NumberFieldOptions,
+  ObjectFieldOptions,
+  OptionalFieldOptions,
   StringFieldOptions,
+  Transform3D,
+  Transform3DFieldOptions,
   VectorFieldOptions,
 } from './default-schemas';

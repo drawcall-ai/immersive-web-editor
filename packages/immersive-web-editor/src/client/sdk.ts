@@ -42,9 +42,13 @@ export interface FieldDescriptor {
       prefix: string,
       actions?: FolderSegment['actions'],
       arrangement?: FolderSegment['arrangement'],
-      options?: Partial<Pick<FolderSegment, 'defaultActive' | 'defaultCollapsed' | 'icon' | 'order' | 'size'>>,
+      options?: Partial<Pick<FolderSegment, 'defaultActive' | 'defaultCollapsed' | 'hideTitle' | 'icon' | 'order' | 'size'>>,
     ): FolderSegment;
-    fieldSegment(title: string | number, id: string, options?: Pick<FieldSegment, 'fill' | 'hidden' | 'icon' | 'order' | 'size'>): FieldSegment;
+    fieldSegment(
+      title: string | number,
+      id: string,
+      options?: Pick<FieldSegment, 'fill' | 'hidden' | 'icon' | 'interactive' | 'order' | 'size' | 'unstyled'>,
+    ): FieldSegment;
     slotPath(parts: readonly (string | number | FolderSegment)[], leaf: FieldSegment): SlotPath;
     defaultValue(field: FieldDescriptor): JsonValue;
   }) => ReactNode;

@@ -2,6 +2,7 @@
   "files": [],
   "references": [
     { "path": "./packages/immersive-web-editor" },
+    { "path": "./packages/adapter" },
     { "path": "./packages/ui" },
     { "path": "./packages/ai" },
     { "path": "./examples/editor-layout" }

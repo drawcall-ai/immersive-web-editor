@@ -31,7 +31,7 @@ function Hero() {
     },
     material: {
       color: val('#ff7755', color()),
-      roughness: val(0.45, number(0.45, { min: 0, max: 1, step: 0.01 })),
+      roughness: val(0.45, number({ default: 0.45, min: 0, max: 1, step: 0.01 })),
     },
   });
 
@@ -69,3 +69,11 @@ Keep values JSON-shaped. Avoid derived values, frame-by-frame state, secrets, ca
 ## Custom schemas
 
 Use built-in schemas like `number`, `color`, `position3D`, `rotation3D`, and `scale3D` first. Create a schema with `defineField()` when a domain-specific control is worth it.
+
+Built-in schema options live in one object:
+
+```ts
+number({ default: 0.5, min: 0, max: 1, step: 0.01 });
+optional({ item: string({ default: 'Untitled' }) });
+array({ item: object({ shape: { label: string() } }), itemLabel: 'Item' });
+```

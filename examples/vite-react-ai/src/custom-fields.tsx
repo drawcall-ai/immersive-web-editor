@@ -45,9 +45,9 @@ function MoodField({
   );
 }
 
-export function mood(defaultValue: Mood = 'alert'): Field<Mood> {
+export function mood(options: { default?: Mood } = {}): Field<Mood> {
   return defineField<Mood>({
-    defaultValue,
+    defaultValue: options.default ?? 'alert',
     component: ({ field, path, setValue, value }) => {
       "use editor";
       return (

@@ -37,6 +37,7 @@ export type Arrangement =
   | 'dock-column'
   | 'dock-row'
   | 'dropdown'
+  | 'layer-stack'
   | 'tabs'
   | 'accordion'
   | 'stack'
@@ -60,6 +61,7 @@ export interface FolderSegment {
   actions?: readonly FolderAction[];
   defaultActive?: boolean;
   defaultCollapsed?: boolean;
+  hideTitle?: boolean;
   order?: number;
   size?: number;
 }
@@ -72,8 +74,10 @@ export interface FieldSegment {
   align?: Align;
   fill?: boolean;
   hidden?: boolean;
+  interactive?: boolean;
   order?: number;
   size?: number;
+  unstyled?: boolean;
 }
 
 export type SlotPath = readonly [FieldSegment] | readonly [...FolderSegment[], FieldSegment];
@@ -101,6 +105,7 @@ interface FolderNode {
   actions: FolderAction[];
   defaultActive: boolean;
   defaultCollapsed: boolean;
+  hideTitle: boolean;
   order: number;
   size?: number;
   folders: FolderNode[];
@@ -399,6 +404,15 @@ const styles = {
     '&[data-axis="vertical"]': { height: 1, cursor: 'row-resize' },
   }),
   stack: css({ boxSizing: 'border-box', display: 'grid', gap: 8, padding: 8, overflow: 'auto', '&[data-fill="true"]': { height: '100%', overflow: 'hidden' } }),
+  layerStack: css({ display: 'grid', width: '100%', height: '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }),
+  layerStackLayer: css({
+    gridArea: '1 / 1',
+    minWidth: 0,
+    minHeight: 0,
+    overflow: 'hidden',
+    pointerEvents: 'none',
+    '&[data-interactive="true"]': { pointerEvents: 'auto' },
+  }),
   grid: css({ boxSizing: 'border-box', display: 'grid', gap: 8, padding: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', overflow: 'auto' }),
   gridCell: css({ minWidth: 0, minHeight: 0 }),
   fields: css({ boxSizing: 'border-box', display: 'grid', gap: 8, padding: 8, '&[data-fill="true"]': { height: '100%', padding: 0 } }),
@@ -408,9 +422,10 @@ const styles = {
     gap: 5,
     '&[data-hidden="true"]': { display: 'none' },
     '&[data-fill="true"]': { height: '100%', minHeight: 0 },
+    '&[data-unstyled="true"]': { padding: 0, gap: 0 },
   }),
   fieldHostLabel: css({ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, color: t.color.muted, fontWeight: 500 }),
-  fieldHostContent: css({ minWidth: 0, minHeight: 0, overflow: 'hidden' }),
+  fieldHostContent: css({ minWidth: 0, minHeight: 0, overflow: 'hidden', '[data-fill="true"] > &': { height: '100%' } }),
   input: css({
     width: '100%',
     boxSizing: 'border-box',
@@ -567,6 +582,7 @@ function createFolderNode(segment: FolderSegment, key: string): FolderNode {
     actions: [...(segment.actions ?? [])],
     defaultActive: segment.defaultActive ?? false,
     defaultCollapsed: segment.defaultCollapsed ?? false,
+    hideTitle: segment.hideTitle ?? false,
     order: segment.order ?? Number.POSITIVE_INFINITY,
     size: segment.size,
     folders: [],
@@ -584,6 +600,7 @@ function mergeFolderNode(node: FolderNode, segment: FolderSegment): FolderNode {
     actions: mergeActions(node.actions, segment.actions ?? []),
     defaultActive: segment.defaultActive ?? node.defaultActive,
     defaultCollapsed: segment.defaultCollapsed ?? node.defaultCollapsed,
+    hideTitle: segment.hideTitle ?? node.hideTitle,
     order: segment.order ?? node.order,
     size: segment.size ?? node.size,
   };
@@ -624,7 +641,7 @@ function FolderRenderer({
 
   return (
     <section className={className} data-fill={hasFill ? 'true' : 'false'}>
-      {!isRoot && node.title.trim() ? <FolderHeader node={node} /> : null}
+      {!isRoot && !node.hideTitle && node.title.trim() ? <FolderHeader node={node} /> : null}
       <FolderBody node={node} />
     </section>
   );
@@ -752,6 +769,7 @@ function ArrangementRenderer({ node }: { node: FolderNode }) {
       {node.arrangement === 'accordion' && <AccordionArrangement node={node} />}
       {node.arrangement === 'dock-row' && <DockArrangement node={node} direction="horizontal" />}
       {node.arrangement === 'dock-column' && <DockArrangement node={node} direction="vertical" />}
+      {node.arrangement === 'layer-stack' && <LayerStackArrangement node={node} />}
       {node.arrangement === 'stack' && <StackArrangement node={node} />}
       {node.arrangement === 'grid' && <GridArrangement node={node} />}
     </>
@@ -1034,6 +1052,26 @@ function StackArrangement({ node }: { node: FolderNode }) {
   );
 }
 
+function LayerStackArrangement({ node }: { node: FolderNode }) {
+  const items = layoutItems(node);
+  return (
+    <div className={styles.layerStack}>
+      {items.map((item) => {
+        const segment = item.type === 'field' ? node.fieldSegments.get(item.slot.id) : undefined;
+        return (
+          <div
+            className={styles.layerStackLayer}
+            data-interactive={segment?.interactive ?? true ? 'true' : 'false'}
+            key={item.key}
+          >
+            <LayoutItemRenderer item={item} parentKey={node.key} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function GridArrangement({ node }: { node: FolderNode }) {
   const items = layoutItems(node);
   return (
@@ -1106,6 +1144,7 @@ function FieldHost({ segment, slotId }: { segment: FieldSegment | undefined; slo
       data-fill={segment?.fill ? 'true' : 'false'}
       data-hidden={segment?.hidden ? 'true' : 'false'}
       data-show-label={segment?.fill ? 'false' : 'true'}
+      data-unstyled={segment?.unstyled ? 'true' : 'false'}
     >
       {segment?.fill ? null : (
         <div className={styles.fieldHostLabel}>
@@ -1177,7 +1216,8 @@ export function NumberField({
         max={max}
         step={step}
         onChange={(event) => draft.setValue(event.currentTarget.value)}
-        onBlur={() => draft.commit()}
+        onBlur={(event) => draft.commit(event.currentTarget.value)}
+        onPointerUp={(event) => draft.commit(event.currentTarget.value)}
         onKeyDown={draft.onKeyDown}
       />
     </Slot>
@@ -1212,10 +1252,57 @@ export function ColorField({
   value: string;
   onCommit?: (value: string) => void;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const draft = useCommitDraft(value, onCommit);
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+
+    const commit = () => draft.commit(input.value);
+    input.addEventListener('change', commit);
+    return () => input.removeEventListener('change', commit);
+  }, [draft.commit]);
+
   return (
     <Slot path={path}>
-      <input className={cx(styles.input, styles.color)} type="color" value={value} onChange={(event) => onCommit?.(event.currentTarget.value)} />
+      <input
+        className={cx(styles.input, styles.color)}
+        ref={inputRef}
+        type="color"
+        value={draft.value}
+        onBlur={(event) => draft.commit(event.currentTarget.value)}
+        onChange={(event) => draft.setValue(event.currentTarget.value)}
+        onInput={(event) => draft.setValue(event.currentTarget.value)}
+        onKeyDown={draft.onKeyDown}
+        onPointerUp={(event) => draft.commit(event.currentTarget.value)}
+      />
     </Slot>
+  );
+}
+
+function InlineNumberInput({
+  value,
+  onCommit,
+}: {
+  value: number;
+  onCommit?: (value: number) => void;
+}) {
+  const draft = useCommitDraft(String(value), (next) => {
+    const parsed = Number(next);
+    if (Number.isFinite(parsed)) onCommit?.(parsed);
+  });
+
+  return (
+    <input
+      className={styles.input}
+      type="number"
+      value={draft.value}
+      onBlur={(event) => draft.commit(event.currentTarget.value)}
+      onChange={(event) => draft.setValue(event.currentTarget.value)}
+      onKeyDown={draft.onKeyDown}
+      onPointerUp={(event) => draft.commit(event.currentTarget.value)}
+    />
   );
 }
 
@@ -1232,14 +1319,12 @@ export function Vector3Field({
     <Slot path={path}>
       <div className={styles.vector}>
         {value.map((item, index) => (
-          <input
-            className={styles.input}
+          <InlineNumberInput
             key={index}
-            type="number"
             value={item}
-            onChange={(event) => {
+            onCommit={(nextItem) => {
               const next = [...value] as [number, number, number];
-              next[index] = Number(event.currentTarget.value);
+              next[index] = nextItem;
               onCommit?.(next);
             }}
           />
@@ -1253,16 +1338,17 @@ function useCommitDraft<T extends string>(source: T, onCommit?: (value: T) => vo
   const [value, setValue] = useState(source);
   useEffect(() => setValue(source), [source]);
 
-  const commit = useCallback(() => {
-    if (value !== source) onCommit?.(value as T);
+  const commit = useCallback((nextValue?: string) => {
+    const candidate = (nextValue ?? value) as T;
+    if (candidate !== source) onCommit?.(candidate);
   }, [value, source, onCommit]);
 
   const revert = useCallback(() => setValue(source), [source]);
 
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (event.key === 'Enter') {
+      commit(event.currentTarget.value);
       event.currentTarget.blur();
-      commit();
     }
     if (event.key === 'Escape') {
       revert();

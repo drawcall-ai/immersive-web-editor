@@ -4,7 +4,7 @@
 // immersive-web-editor: preview, contributed plugins, and config fields are all
 // rendered as Slot leaves.
 
-import { createElement, isValidElement, useCallback, useEffect, useLayoutEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react';
+import { createElement, isValidElement, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   Editor as WorkbenchEditor,
@@ -14,6 +14,10 @@ import {
   type FolderSegment,
   type SlotPath,
 } from '@immersive-web-editor/ui';
+import { receiveEditorCamera, type ReceivedEditorCamera } from '@immersive-web-editor/adapter';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { OrbitHandles } from '@react-three/handle';
+import { PointerEvents, noEvents } from '@react-three/xr';
 import Bot from 'lucide-react/dist/esm/icons/bot.js';
 import Box from 'lucide-react/dist/esm/icons/box.js';
 import FileText from 'lucide-react/dist/esm/icons/file-text.js';
@@ -24,15 +28,23 @@ import SlidersHorizontal from 'lucide-react/dist/esm/icons/sliders-horizontal.js
 import Type from 'lucide-react/dist/esm/icons/type.js';
 import * as commands from './commands';
 import { useKeybindings } from './commands';
+import {
+  OverlayCanvasContent,
+  OverlayCanvasSourceProvider,
+  removeOverlayCanvasEntriesBySource,
+  useOverlayCanvasEntries,
+} from './overlay-canvas';
 import { Palette } from './palette';
 import { styles } from './styles';
 import type { CommandOptions, FieldDescriptor } from './sdk';
+import * as defaultSchemaComponents from '../default-schema-components';
 import {
   pluginCommands as configuredPluginCommands,
   pluginModules as configuredPluginModules,
   previewUrl as configuredPreviewUrl,
 } from 'virtual:editor/config';
 import {
+  DEFAULT_SCHEMA_COMPONENT_MODULE,
   isEditorComponentRef,
   isPreviewToEditorMessage,
   type FieldRegistration,
@@ -77,6 +89,9 @@ interface EditorConfig {
 
 const PANEL_PREVIEW = 'editor:preview';
 const PANEL_CONFIG = 'editor:config';
+const PREVIEW_FRAME = 'editor:preview:frame';
+const PREVIEW_OVERLAY = 'editor:preview:overlay';
+const PREVIEW_LOADING = 'editor:preview:loading';
 
 type ContributionSource = Window | object;
 
@@ -188,7 +203,7 @@ function folderSegment(
   prefix: string,
   actions?: FolderSegment['actions'],
   arrangement: FolderSegment['arrangement'] = 'stack',
-  options?: Partial<Pick<FolderSegment, 'defaultActive' | 'defaultCollapsed' | 'icon' | 'order' | 'size'>>,
+  options?: Partial<Pick<FolderSegment, 'defaultActive' | 'defaultCollapsed' | 'hideTitle' | 'icon' | 'order' | 'size'>>,
 ): FolderSegment {
   const icon = options && 'icon' in options ? options.icon : folderIcon(String(title), prefix);
   return {
@@ -201,7 +216,11 @@ function folderSegment(
   };
 }
 
-function fieldSegment(title: string | number, id: string, options?: Pick<FieldSegment, 'fill' | 'hidden' | 'icon' | 'order' | 'size'>): FieldSegment {
+function fieldSegment(
+  title: string | number,
+  id: string,
+  options?: Pick<FieldSegment, 'fill' | 'hidden' | 'icon' | 'interactive' | 'order' | 'size' | 'unstyled'>,
+): FieldSegment {
   return {
     id: segmentId(id, 'field'),
     title: String(title),
@@ -283,12 +302,24 @@ function slotActions(actions: FieldActionOptions[] | undefined): FolderSegment['
   }));
 }
 
-function previewSlotPath(): SlotPath {
-  return [fieldSegment('Preview', PANEL_PREVIEW, {
-    fill: true,
+function previewFolder(): FolderSegment {
+  return folderSegment('Preview', PANEL_PREVIEW, undefined, 'layer-stack', {
+    hideTitle: true,
     order: 20,
     size: 52,
-  })];
+  });
+}
+
+function previewLayerPath(title: string, id: string, order: number, interactive = true): SlotPath {
+  return [
+    previewFolder(),
+    fieldSegment(title, id, {
+      fill: true,
+      interactive,
+      order,
+      unstyled: true,
+    }),
+  ];
 }
 
 function focusSlot(id: string): void {
@@ -356,7 +387,7 @@ function FieldOutlet({
 }) {
   const rawLabel = (field.label ?? pathPartTitle(viewPath.at(-1))) || inputLabel(fieldRegistration);
   const label = rawLabel || inputLabel(fieldRegistration);
-  const configFolder = folderSegment('Config', PANEL_CONFIG, undefined, 'accordion', { order: 30, size: 24 });
+  const configFolder = folderSegment('Config', PANEL_CONFIG, undefined, 'accordion', { hideTitle: true, order: 30, size: 24 });
   const panelFolder = folderSegment(fieldRegistration.panel, `config:${fieldRegistration.panel}`, undefined, 'accordion');
   const leaf = fieldSegment(label, `${fieldRegistration.id}:${dataPath.join('.') || 'value'}`, { icon: descriptorIcon(field) });
   const path = slotPath([configFolder, panelFolder, ...viewPath.slice(0, -1)], leaf);
@@ -368,7 +399,7 @@ function FieldOutlet({
     );
   }
 
-  return field.component({
+  const renderedField = field.component({
     configFolder,
     dataPath,
     defaultValue: descriptorDefault,
@@ -396,6 +427,12 @@ function FieldOutlet({
     },
     slotPath,
   });
+
+  return (
+    <OverlayCanvasSourceProvider source={fieldRegistration.source}>
+      {renderedField}
+    </OverlayCanvasSourceProvider>
+  );
 }
 
 function FieldContributions() {
@@ -418,7 +455,7 @@ function FieldContributions() {
   );
 }
 
-function PreviewSlot({
+function PreviewSlots({
   onLoad,
   onUnload,
   src,
@@ -428,6 +465,7 @@ function PreviewSlot({
   src: string;
 }) {
   const [frame, setFrame] = useState<HTMLIFrameElement | null>(null);
+  const [previewWindow, setPreviewWindow] = useState<Window | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -442,6 +480,7 @@ function PreviewSlot({
       if (!currentWindow || unloaded) return;
       unloaded = true;
       setLoading(true);
+      setPreviewWindow(null);
       onUnload(currentWindow);
     };
     const detachWindowListeners = () => {
@@ -457,10 +496,16 @@ function PreviewSlot({
       if (!currentWindow) return;
       currentWindow.addEventListener('beforeunload', notifyUnload);
       currentWindow.addEventListener('pagehide', notifyUnload);
+      setPreviewWindow(currentWindow);
       onLoad(currentWindow);
       setLoading(false);
     };
     frame.addEventListener('load', onFrameLoad);
+    try {
+      if (frame.contentDocument?.readyState === 'complete') queueMicrotask(onFrameLoad);
+    } catch {
+      // Cross-origin previews still notify through the load event.
+    }
     return () => {
       notifyUnload();
       detachWindowListeners();
@@ -469,8 +514,8 @@ function PreviewSlot({
   }, [frame, onLoad, onUnload]);
 
   return (
-    <WorkbenchSlot path={previewSlotPath()}>
-      <div className={styles.previewFrameHost}>
+    <>
+      <WorkbenchSlot path={previewLayerPath('Preview Frame', PREVIEW_FRAME, 0)}>
         <iframe
           ref={setFrame}
           className={styles.iframe}
@@ -479,14 +524,61 @@ function PreviewSlot({
           tabIndex={-1}
           title="Preview"
         />
-        {loading && (
+      </WorkbenchSlot>
+      <WorkbenchSlot path={previewLayerPath('Overlay Canvas', PREVIEW_OVERLAY, 10)}>
+        <OverlayCanvasLayer target={previewWindow} />
+      </WorkbenchSlot>
+      {loading && (
+        <WorkbenchSlot path={previewLayerPath('Preview Loading', PREVIEW_LOADING, 20, false)}>
           <div className={styles.previewLoading} role="status" aria-label="Loading preview">
             <Loader2 aria-hidden className={styles.spinner} size={22} />
           </div>
-        )}
-      </div>
-    </WorkbenchSlot>
+        </WorkbenchSlot>
+      )}
+    </>
   );
+}
+
+function OverlayCanvasLayer({ target }: { target: Window | null }) {
+  const entries = useOverlayCanvasEntries();
+
+  return (
+    <Canvas
+      camera={{ position: [0, 0, 5], fov: 45 }}
+      className={styles.previewCanvas}
+      events={noEvents}
+      gl={{ alpha: true, antialias: true }}
+      onCreated={({ gl }) => gl.setClearColor(0x000000, 0)}
+    >
+      <PointerEvents />
+      <OrbitHandles />
+      <EditorCameraPublisher target={target} />
+      <OverlayCanvasContent entries={entries} />
+    </Canvas>
+  );
+}
+
+function EditorCameraPublisher({ target }: { target: Window | null }) {
+  const camera = useThree((state) => state.camera);
+  const publisher = useRef<ReceivedEditorCamera | null>(null);
+
+  useEffect(() => {
+    publisher.current?.dispose();
+    publisher.current = null;
+    if (!target) return;
+    publisher.current = receiveEditorCamera(target, () => {
+      camera.updateMatrixWorld();
+      return camera.matrixWorld.elements;
+    });
+    return () => {
+      publisher.current?.dispose();
+      publisher.current = null;
+    };
+  }, [camera, target]);
+
+  useFrame(() => publisher.current?.submit());
+
+  return null;
 }
 
 function RuntimeMountedField({ mount }: { mount: RuntimeMountedField }) {
@@ -528,6 +620,10 @@ interface EditorPluginModule {
 
 const importEditorComponent = new Function('src', 'return import(src)') as (src: string) => Promise<Record<string, unknown>>;
 
+function resolveDefaultSchemaComponent(exportName: string): unknown {
+  return (defaultSchemaComponents as Record<string, unknown>)[exportName];
+}
+
 async function hydrateFieldDescriptor(value: unknown): Promise<unknown> {
   if (Array.isArray(value)) return Promise.all(value.map((item) => hydrateFieldDescriptor(item)));
   if (!value || typeof value !== 'object') return value;
@@ -540,8 +636,9 @@ async function hydrateFieldDescriptor(value: unknown): Promise<unknown> {
 
   if (!isEditorComponentRef(record.component)) return next;
 
-  const module = await importEditorComponent(record.component.module);
-  const component = module[record.component.exportName];
+  const component = record.component.module === DEFAULT_SCHEMA_COMPONENT_MODULE
+    ? resolveDefaultSchemaComponent(record.component.exportName)
+    : (await importEditorComponent(record.component.module))[record.component.exportName];
   if (typeof component !== 'function') {
     console.warn(`[editor] Missing field component export "${record.component.exportName}" from ${record.component.module}.`);
     return next;
@@ -605,6 +702,7 @@ function EditorShell() {
   const handleIframeUnload = useCallback((source: Window) => {
     mountedFieldStore.removeBySource(source);
     fieldStore.removeBySource(source);
+    removeOverlayCanvasEntriesBySource(source);
     commands.clearBySource(source);
   }, []);
 
@@ -614,10 +712,6 @@ function EditorShell() {
       if (!isPreviewToEditorMessage(event.data)) return;
       if (event.data.type === 'editor:addField') {
         void addSerializedField(event.data.field, event.source as Window);
-        return;
-      }
-      if (event.data.type === 'editor:removeField') {
-        fieldStore.remove(event.data.id);
       }
     };
 
@@ -680,7 +774,7 @@ function EditorShell() {
   return (
     <div className={styles.shell}>
       <WorkbenchEditor root={workbenchRoot}>
-        <PreviewSlot src={config.previewUrl} onLoad={handleIframeLoad} onUnload={handleIframeUnload} />
+        <PreviewSlots src={config.previewUrl} onLoad={handleIframeLoad} onUnload={handleIframeUnload} />
         <FieldContributions />
         <RuntimeMountedFields />
       </WorkbenchEditor>

@@ -4,6 +4,7 @@ export {
   boolean,
   color,
   euler,
+  fileUrl,
   json,
   number,
   object,
@@ -13,12 +14,13 @@ export {
   scale3D,
   schema,
   string,
+  transform3D,
   vec2,
   vec3,
 } from './default-schemas';
 import type { ReactNode } from 'react';
 import type { FieldSegment, FolderSegment, SlotPath } from '@immersive-web-editor/ui';
-import { isEditorComponentRef, isJsonValue, type EditorComponentRef, type JsonValue, type SerializedFieldDescriptor } from './rpc';
+import { addFieldMessage, isEditorComponentRef, isJsonValue, type EditorComponentRef, type JsonValue, type PreviewToEditorMessage, type SerializedFieldDescriptor } from './rpc';
 
 export type { EditorComponentRef, JsonValue };
 
@@ -50,9 +52,13 @@ export interface EditorFieldComponentProps {
     prefix: string,
     actions?: FolderSegment['actions'],
     arrangement?: FolderSegment['arrangement'],
-    options?: Partial<Pick<FolderSegment, 'defaultActive' | 'defaultCollapsed' | 'icon' | 'order' | 'size'>>,
+    options?: Partial<Pick<FolderSegment, 'defaultActive' | 'defaultCollapsed' | 'hideTitle' | 'icon' | 'order' | 'size'>>,
   ): FolderSegment;
-  fieldSegment(title: string | number, id: string, options?: Pick<FieldSegment, 'fill' | 'hidden' | 'icon' | 'order' | 'size'>): FieldSegment;
+  fieldSegment(
+    title: string | number,
+    id: string,
+    options?: Pick<FieldSegment, 'fill' | 'hidden' | 'icon' | 'interactive' | 'order' | 'size' | 'unstyled'>,
+  ): FieldSegment;
   slotPath(parts: readonly (string | number | FolderSegment)[], leaf: FieldSegment): SlotPath;
   defaultValue(field: FieldDescriptor): JsonValue;
 }
@@ -93,7 +99,7 @@ export interface FieldOptions<T extends JsonValue = JsonValue> {
 
 export interface DefineFieldOptions<T extends JsonValue> extends FieldOptions<T> {
   defaultValue: T | (() => T);
-  component: EditorFieldComponent;
+  component: EditorFieldComponent | EditorComponentRef;
   props?: unknown;
 }
 
@@ -166,10 +172,10 @@ function unwrap<T>(input: T): ConfigInput<T> {
 }
 
 function inferredField(value: JsonValue): Field {
-  if (typeof value === 'string') return string(value);
-  if (typeof value === 'number') return number(value);
-  if (typeof value === 'boolean') return boolean(value);
-  return json(value);
+  if (typeof value === 'string') return string({ default: value });
+  if (typeof value === 'number') return number({ default: value });
+  if (typeof value === 'boolean') return boolean({ default: value });
+  return json({ default: value });
 }
 
 function isConfigMeta(value: unknown): value is ConfigMeta {
@@ -182,7 +188,7 @@ function isConfigMeta(value: unknown): value is ConfigMeta {
   );
 }
 
-function sendToEditor(message: unknown): void {
+function sendToEditor(message: PreviewToEditorMessage): void {
   try {
     if (window.parent === window) return;
     window.parent.postMessage(message, window.location.origin);
@@ -209,7 +215,7 @@ function registerValue<T extends JsonValue>(meta: ConfigMeta, value: T, field: F
     value,
     field: field.descriptor as SerializedFieldDescriptor,
   };
-  sendToEditor({ type: 'editor:addField', field: registration });
+  sendToEditor(addFieldMessage(registration));
 }
 
 export function val<T extends string | number | boolean>(value: T): T;
