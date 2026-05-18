@@ -8,6 +8,7 @@ import { build } from 'esbuild';
 
 const tmpDir = new URL('../.test-tmp/', import.meta.url);
 const bundledEntry = new URL('client-public.mjs', tmpDir);
+const bundledServerEntry = new URL('server.mjs', tmpDir);
 
 await rm(tmpDir, { recursive: true, force: true });
 await mkdir(tmpDir, { recursive: true });
@@ -20,8 +21,18 @@ await build({
   platform: 'browser',
   target: 'es2022',
 });
+await build({
+  entryPoints: [fileURLToPath(new URL('../src/index.ts', import.meta.url))],
+  bundle: true,
+  format: 'esm',
+  outfile: fileURLToPath(bundledServerEntry),
+  packages: 'external',
+  platform: 'node',
+  target: 'es2022',
+});
 
 const { fileUrl, optional } = await import(bundledEntry.href);
+const { default: editorPlugin } = await import(bundledServerEntry.href);
 
 after(async () => {
   await rm(tmpDir, { recursive: true, force: true });
@@ -61,4 +72,18 @@ test('optional({ item: fileUrl() }) represents no public file as null', () => {
   assert.equal(required.defaultValue(), '');
   assert.equal(nullable.defaultValue(), null);
   assert.equal(nullable.descriptor.defaultValue, null);
+});
+
+test('config transform registers final val property without trailing comma', () => {
+  const plugin = editorPlugin();
+  const source = `import { config, number, transform3D, val } from 'immersive-web-editor';
+const object = config('Transform Handle', {
+  transform: val({"position":[0,0,0],"rotation":[0,0,0],"scale":[1,1,1]}, transform3D()),
+  fov: val(45, number())
+});`;
+
+  const result = plugin.transform(source, fileURLToPath(new URL('../examples/transform-handles/src/App.tsx', import.meta.url)));
+
+  assert.match(result.code, /"path":\["fov"\]/);
+  assert.match(result.code, /fov:\s*val\(\{"id":"editor:/);
 });

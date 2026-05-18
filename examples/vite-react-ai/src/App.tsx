@@ -7,10 +7,9 @@ import {
   object,
   optional,
   position3D,
-  rotation3D,
-  scale3D,
   string,
   val,
+  vec3,
 } from 'immersive-web-editor';
 import { mood } from './custom-fields';
 
@@ -34,8 +33,8 @@ export function App() {
     visible: val(true, bool()),
     transform: {
       position: val([-5.4,-3.2,0], position3D({ default: [-1.4, 0.8, 0] })),
-      rotation: val([0, 18, 0], rotation3D({ default: [0, 0, 0] })),
-      scale: val([1.1, 1.1, 1.1], scale3D({ default: [1, 1, 1] })),
+      rotation: val([0, 18, 0], vec3({ default: [0, 0, 0] })),
+      scale: val([1.1, 1.1, 1.1], vec3({ default: [1, 1, 1] })),
     },
     material: {
       color: val("#df2a2a", color({ default: "#65d6ad" })),

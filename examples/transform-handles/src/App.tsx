@@ -2,7 +2,7 @@ import { publishEditorCamera } from '@immersive-web-editor/adapter';
 import { Canvas, useLoader, useThree } from '@react-three/fiber';
 import { useEffect } from 'react';
 import { SRGBColorSpace, TextureLoader } from 'three';
-import { color, config, fileUrl, optional, string, transform3D, val } from 'immersive-web-editor';
+import { color, config, fileUrl, number, optional, string, transform3D, val } from 'immersive-web-editor';
 
 type Transform = {
   position: readonly [number, number, number];
@@ -88,19 +88,21 @@ function CubeTextureMaterial({
 export function App() {
   const object = config('Transform Handle', {
     name: val("Portal marker", string()),
-    color: val("#9d1515", color()),
+    color: val("#00ff04", color()),
     mapTexture: val(null, optional({ item: fileUrl({ accept: "image/*", label: "Map texture" }) })),
     transform: val(
       {"position":[0,0,0],"rotation":[0,0,0],"scale":[1,1,1]},
       transform3D(),
     ),
+    fov: val(45, number())
   });
 
   return (
     <main className="page">
       <section className="stage">
         <Canvas
-          camera={{ position: [0, 0, 5], fov: 45 }}
+          camera={{ position: [0, 0, 5], fov: object.fov }}
+          key={object.fov}
           className="canvas"
           frameloop="demand"
         >

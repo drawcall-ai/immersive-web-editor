@@ -167,14 +167,6 @@ export function euler(options: VectorFieldOptions<Vector3> = {}): Field<Vector3>
   return vec3(options);
 }
 
-export function rotation3D(options: VectorFieldOptions<Vector3> = {}): Field<Vector3> {
-  return vector3WithHandle(options, 'rotate', [0, 0, 0]);
-}
-
-export function scale3D(options: VectorFieldOptions<Vector3> = {}): Field<Vector3> {
-  return vector3WithHandle(options, 'scale', [1, 1, 1]);
-}
-
 function vector3WithHandle(
   options: VectorFieldOptions<Vector3>,
   handle: 'translate' | 'rotate' | 'scale',
@@ -280,8 +272,6 @@ export const schema = {
   vec3,
   position3D,
   euler,
-  rotation3D,
-  scale3D,
   transform3D,
   object,
   array,

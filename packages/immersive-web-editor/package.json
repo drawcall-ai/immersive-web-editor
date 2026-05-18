@@ -7,20 +7,20 @@
     "url": "git+https://github.com/drawcall-ai/immersive-web-editor.git",
     "directory": "packages/immersive-web-editor"
   },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
   "exports": {
     ".": {
-      "browser": "./dist/client-public.js",
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "browser": "./src/client-public.ts",
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
     },
     "./editor-shell": {
-      "import": "./dist/client/editor-shell.js"
+      "import": "./src/client/editor-shell.tsx"
     },
     "./editor-components": {
-      "types": "./dist/editor-components.d.ts",
-      "import": "./dist/editor-components.js"
+      "types": "./src/editor-components.ts",
+      "import": "./src/editor-components.ts"
     }
   },
   "files": [
@@ -34,7 +34,23 @@
     "test": "node test/file-url-schema.test.mjs"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "browser": "./dist/client-public.js",
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./editor-shell": {
+        "import": "./dist/client/editor-shell.js"
+      },
+      "./editor-components": {
+        "types": "./dist/editor-components.d.ts",
+        "import": "./dist/editor-components.js"
+      }
+    }
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",
@@ -62,6 +78,7 @@
     "cmdk": "^1.1.1",
     "esbuild": "^0.27.3",
     "lucide-react": "^0.468.0",
+    "picocolors": "^1.1.1",
     "three": "^0.184.0"
   }
 }

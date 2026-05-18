@@ -4,6 +4,7 @@ import { basename, dirname, extname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { build as buildWithEsbuild, type Plugin as EsbuildPlugin } from 'esbuild';
+import pc from 'picocolors';
 import type { Plugin, ViteDevServer } from 'vite';
 import type { EditorApiErrorResponse, ListPublicFilesResponse, PublicFile, UploadPublicFileResponse } from './rpc';
 
@@ -141,6 +142,9 @@ const clientPublicEntry = resolve(
 const editorShellImport = entryFile.endsWith('.ts')
   ? fsModulePath(editorShellEntry)
   : 'immersive-web-editor/editor-shell';
+const immersiveWebEditorSrcDir = here;
+const uiSrcDir = resolve(here, '../../ui/src');
+const adapterSrcDir = resolve(here, '../../adapter/src');
 
 function fsModulePath(file: string): string {
   return `/@fs/${normalizePath(resolve(file))}`;
@@ -194,6 +198,11 @@ interface ScanState {
 const IDENTIFIER_RE = /[$_\p{ID_Start}][$\u200c\u200d\p{ID_Continue}]*/u;
 function normalizePath(path: string): string {
   return path.split(sep).join('/');
+}
+
+function isWithin(file: string, directory: string): boolean {
+  const relativePath = relative(directory, file);
+  return relativePath !== '' && !relativePath.startsWith('..') && !relativePath.startsWith(`${sep}`);
 }
 
 function stripQuery(id: string): string {
@@ -303,6 +312,12 @@ function advanceScanState(code: string, index: number, state: ScanState): void {
 function skipWhitespace(code: string, index: number): number {
   let cursor = index;
   while (/\s/.test(code[cursor] ?? '')) cursor++;
+  return cursor;
+}
+
+function skipWhitespaceInRange(code: string, index: number, end: number): number {
+  let cursor = index;
+  while (cursor < end && /\s/.test(code[cursor] ?? '')) cursor++;
   return cursor;
 }
 
@@ -483,7 +498,7 @@ function findValueCall(
   const openParen = skipWhitespace(code, cursor + alias.length);
   if (code[openParen] !== '(') return null;
   const callEnd = findCallEnd(code, openParen);
-  if (!callEnd || skipWhitespace(code, callEnd.close + 1) !== range.end) return null;
+  if (!callEnd || skipWhitespaceInRange(code, callEnd.close + 1, range.end) !== range.end) return null;
 
   const args = splitTopLevelArgs(code, openParen, callEnd.close);
   const maybeMeta = safeJsonParse(code.slice(args[0]?.start ?? 0, args[0]?.end ?? 0));
@@ -533,7 +548,7 @@ function collectValueCallsInShape(
   const cursor = skipWhitespace(code, range.start);
   if (code[cursor] !== '{') return [];
   const close = findMatchingBracket(code, cursor, '{', '}');
-  if (close === -1 || skipWhitespace(code, close + 1) !== range.end) return [];
+  if (close === -1 || skipWhitespaceInRange(code, close + 1, range.end) !== range.end) return [];
 
   return splitObjectProperties(code, cursor, close).flatMap((property) => (
     collectValueCallsInShape(code, property.value, panel, [...path, property.key], values)
@@ -825,9 +840,18 @@ function findImportInsertionIndex(code: string): number {
   return lastImportEnd;
 }
 
-function editorComponentUrl(file: string, index: number): string {
-  const params = new URLSearchParams({ file, index: String(index) });
+function editorComponentUrl(file: string, index: number, source: string): string {
+  const params = new URLSearchParams({ file, index: String(index), v: sourceHash(source) });
   return `${EDITOR_STATIC_COMPONENT_PATH}?${params.toString()}`;
+}
+
+function sourceHash(value: string): string {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index++) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
 }
 
 interface EditorComponentExtraction {
@@ -876,7 +900,7 @@ function extractEditorComponents(
     const name = `__editor_component_${index}`;
     if (includeDeclarations) declarations.unshift(`const ${name} = ${match.source};`);
     transformed = `${transformed.slice(0, match.start)}${JSON.stringify({
-      module: editorComponentUrl(file, index),
+      module: editorComponentUrl(file, index, match.source),
       exportName: name,
     })}${transformed.slice(match.end)}`;
   }
@@ -908,6 +932,7 @@ function renderEditorShell(): string {
     <script type="importmap">
       ${JSON.stringify({ imports: staticEditorImportMap() })}
     </script>
+    <script type="module" src="/@vite/client"></script>
     <script type="module" src="${EDITOR_STATIC_SHELL_PATH}"></script>
   </head>
   <body></body>
@@ -1129,6 +1154,22 @@ export default runtime;
 ${names.map((name) => `export const ${name} = api.${name};`).join('\n')}`;
 }
 
+function editorUrl(baseUrl: string): string {
+  return new URL(EDITOR_PATH, baseUrl).href;
+}
+
+function colorUrl(url: string): string {
+  return pc.cyan(url.replace(/:(\d+)\//, (_, port: string) => `:${pc.bold(port)}/`));
+}
+
+function printEditorUrls(server: ViteDevServer): void {
+  const urls = server.resolvedUrls;
+  if (!urls) return;
+  const log = server.config.logger;
+  for (const url of urls.local) log.info(`  ${pc.green('➜')}  ${pc.bold('Editor')}:  ${colorUrl(editorUrl(url))}`);
+  for (const url of urls.network) log.info(`  ${pc.green('➜')}  ${pc.bold('Editor')}:  ${colorUrl(editorUrl(url))}`);
+}
+
 async function buildStaticEditorComponent(file: string, index: number): Promise<string> {
   const code = readFileSync(file, 'utf8');
   const result = await buildWithEsbuild({
@@ -1206,6 +1247,16 @@ function staticEditorVirtualModules(
       });
     },
   };
+}
+
+function shouldReloadEditor(file: string): boolean {
+  return isWithin(file, resolve(immersiveWebEditorSrcDir, 'client'))
+    || file === resolve(immersiveWebEditorSrcDir, 'default-schema-components.tsx')
+    || file === resolve(immersiveWebEditorSrcDir, 'default-schemas.tsx')
+    || file === resolve(immersiveWebEditorSrcDir, 'editor-components.ts')
+    || file === resolve(immersiveWebEditorSrcDir, 'rpc.ts')
+    || isWithin(file, uiSrcDir)
+    || isWithin(file, adapterSrcDir);
 }
 
 export default function editorPlugin(options: EditorOptions = {}): Plugin {
@@ -1332,6 +1383,13 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
       return null;
     },
 
+    handleHotUpdate(ctx) {
+      const file = stripQuery(ctx.file);
+      if (!shouldReloadEditor(file)) return;
+      ctx.server.ws.send({ type: 'full-reload' });
+      return [];
+    },
+
     closeBundle() {
       if (options.build?.enabled !== true || !buildOutDir) return;
       const htmlSource = resolve(buildOutDir, EDITOR_BUILD_HTML_ID);
@@ -1343,7 +1401,12 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
     },
 
     async configureServer(server) {
-      const log = server.config.logger;
+      server.watcher.add([
+        immersiveWebEditorSrcDir,
+        uiSrcDir,
+        adapterSrcDir,
+      ]);
+
       for (const plugin of plugins) {
         await plugin.configureServer?.({ server });
       }
@@ -1490,7 +1553,9 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
         next();
       });
 
-      log.info(`[editor] active at ${EDITOR_PATH}`);
+      server.httpServer?.once('listening', () => {
+        setTimeout(() => printEditorUrls(server), 0);
+      });
     },
   };
 }
@@ -1510,8 +1575,6 @@ export declare const number: typeof import('./default-schemas').number;
 export declare const object: typeof import('./default-schemas').object;
 export declare const optional: typeof import('./default-schemas').optional;
 export declare const position3D: typeof import('./default-schemas').position3D;
-export declare const rotation3D: typeof import('./default-schemas').rotation3D;
-export declare const scale3D: typeof import('./default-schemas').scale3D;
 export declare const schema: typeof import('./default-schemas').schema;
 export declare const string: typeof import('./default-schemas').string;
 export declare const transform3D: typeof import('./default-schemas').transform3D;

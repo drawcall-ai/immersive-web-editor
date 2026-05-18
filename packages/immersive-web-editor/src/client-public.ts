@@ -28,8 +28,6 @@ export {
   object,
   optional,
   position3D,
-  rotation3D,
-  scale3D,
   schema,
   string,
   transform3D,

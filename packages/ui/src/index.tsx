@@ -635,7 +635,9 @@ function FolderRenderer({
   parentKey: string;
   isRoot?: boolean;
 }) {
-  const arrangement = node.arrangement;
+  const onlyChild = isRoot ? null : singleRenderableChild(node);
+  if (onlyChild) return <LayoutItemRenderer item={onlyChild} parentKey={parentKey} />;
+
   const className = cx(styles.folder, isRoot && styles.folderRoot);
   const hasFill = folderHasFill(node);
 
@@ -645,6 +647,12 @@ function FolderRenderer({
       <FolderBody node={node} />
     </section>
   );
+}
+
+function singleRenderableChild(node: FolderNode): LayoutItem | null {
+  if (node.actions.length > 0) return null;
+  const items = layoutItems(node);
+  return items.length === 1 ? items[0]! : null;
 }
 
 function folderHasFill(node: FolderNode): boolean {
