@@ -114,8 +114,11 @@ interface FolderNode {
 }
 
 type LayoutItem =
-  | { type: 'field'; key: string; order: number; size?: number; slot: SlotRecord; title: string }
+  | { type: 'field'; key: string; order: number; segment?: FieldSegment; size?: number; slot: SlotRecord; title: string }
   | { type: 'folder'; key: string; node: FolderNode; order: number; size?: number; title: string };
+
+type FieldLayoutItem = Extract<LayoutItem, { type: 'field' }>;
+type FolderLayoutItem = Extract<LayoutItem, { type: 'folder' }>;
 
 interface EditorContextValue {
   root: EditorRoot;
@@ -758,7 +761,7 @@ function FolderActionMenu({ actions }: { actions: FolderAction[] }) {
 function renderActionIcon(icon: FolderAction['icon']): ReactNode {
   if (isValidElement(icon)) return icon;
   if (typeof icon === 'function' || (icon && typeof icon === 'object' && '$$typeof' in icon)) {
-    const Icon = icon as ElementType;
+    const Icon = icon as ElementType<{ 'aria-hidden'?: boolean }>;
     return <Icon aria-hidden />;
   }
   return icon as ReactNode;
@@ -875,25 +878,29 @@ function NavItem({
 }
 
 function TabsArrangement({ node }: { node: FolderNode }) {
-  const folders = node.folders;
-  const [active, setActive] = useState(() => folders.find((folder) => folder.defaultActive)?.key ?? folders[0]?.key ?? '');
+  const { fields, folders } = splitLayoutItems(node);
+  const [active, setActive] = useState(() => folders.find((item) => item.node.defaultActive)?.key ?? folders[0]?.key ?? '');
   useEffect(() => {
     if (folders.length === 0) return;
-    if (folders.some((folder) => folder.key === active)) return;
-    setActive(folders.find((folder) => folder.defaultActive)?.key ?? folders[0]?.key ?? '');
+    if (folders.some((item) => item.key === active)) return;
+    setActive(folders.find((item) => item.node.defaultActive)?.key ?? folders[0]?.key ?? '');
   }, [active, folders]);
-  const activeFolder = folders.find((folder) => folder.key === active) ?? folders[0];
-  if (node.fields.length === 0 && folders.length === 1) {
-    return <FolderBody node={folders[0]} />;
+  const activeItem = folders.find((item) => item.key === active) ?? folders[0];
+  const activeFolder = activeItem?.node;
+  if (folders.length === 0) {
+    return <FieldItemsList items={fields} />;
+  }
+  if (fields.length === 0 && folders.length === 1) {
+    return <LayoutItemRenderer item={activeItem} parentKey={node.key} />;
   }
   return (
-    <Tabs.Root className={styles.tabs} value={activeFolder?.key ?? ''} onValueChange={setActive}>
-      <FieldList node={node} />
+    <Tabs.Root className={styles.tabs} value={activeItem?.key ?? ''} onValueChange={setActive}>
+      <FieldItemsList items={fields} />
       <Tabs.List aria-label={node.title} className={styles.tabbar}>
-        {folders.map((folder) => (
-          <Tabs.Trigger className={styles.tab} key={folder.key} value={folder.key}>
-            <span className={styles.folderIcon}>{folder.icon}</span>
-            {folder.title}
+        {folders.map((item) => (
+          <Tabs.Trigger className={styles.tab} key={item.key} value={item.key}>
+            <span className={styles.folderIcon}>{item.node.icon}</span>
+            {item.node.title}
           </Tabs.Trigger>
         ))}
       </Tabs.List>
@@ -910,18 +917,23 @@ function TabsArrangement({ node }: { node: FolderNode }) {
 }
 
 function DropdownArrangement({ node }: { node: FolderNode }) {
-  const folders = node.folders;
-  const [active, setActive] = useState(() => folders.find((folder) => folder.defaultActive)?.key ?? folders[0]?.key ?? '');
+  const { fields, folders } = splitLayoutItems(node);
+  const [active, setActive] = useState(() => folders.find((item) => item.node.defaultActive)?.key ?? folders[0]?.key ?? '');
   useEffect(() => {
     if (folders.length === 0) return;
-    if (folders.some((folder) => folder.key === active)) return;
-    setActive(folders.find((folder) => folder.defaultActive)?.key ?? folders[0]?.key ?? '');
+    if (folders.some((item) => item.key === active)) return;
+    setActive(folders.find((item) => item.node.defaultActive)?.key ?? folders[0]?.key ?? '');
   }, [active, folders]);
-  const activeFolder = folders.find((folder) => folder.key === active) ?? folders[0];
+  const activeItem = folders.find((item) => item.key === active) ?? folders[0];
+  const activeFolder = activeItem?.node;
+
+  if (folders.length === 0) {
+    return <FieldItemsList items={fields} />;
+  }
 
   return (
     <div className={styles.dropdown}>
-      <FieldList node={node} />
+      <FieldItemsList items={fields} />
       <div className={styles.dropdownBar}>
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
@@ -937,14 +949,14 @@ function DropdownArrangement({ node }: { node: FolderNode }) {
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content align="start" className={styles.dropdownMenu} sideOffset={6}>
-              {folders.map((folder) => (
+              {folders.map((item) => (
                 <DropdownMenu.Item
                   className={styles.dropdownItem}
-                  key={folder.key}
-                  onSelect={() => setActive(folder.key)}
+                  key={item.key}
+                  onSelect={() => setActive(item.key)}
                 >
-                  {folder.icon ? <span className={styles.folderIcon}>{folder.icon}</span> : null}
-                  <span>{folder.title}</span>
+                  {item.node.icon ? <span className={styles.folderIcon}>{item.node.icon}</span> : null}
+                  <span>{item.node.title}</span>
                 </DropdownMenu.Item>
               ))}
             </DropdownMenu.Content>
@@ -962,26 +974,26 @@ function DropdownArrangement({ node }: { node: FolderNode }) {
 }
 
 function AccordionArrangement({ node }: { node: FolderNode }) {
-  const folders = node.folders;
+  const { fields, folders } = splitLayoutItems(node);
   return (
     <Accordion.Root
       className={styles.accordion}
-      defaultValue={folders.filter((folder) => !folder.defaultCollapsed).map((folder) => folder.key)}
+      defaultValue={folders.filter((item) => !item.node.defaultCollapsed).map((item) => item.key)}
       type="multiple"
     >
-      <FieldList node={node} />
-      {folders.map((folder) => (
-        <Accordion.Item className={styles.accordionItem} key={folder.key} value={folder.key}>
+      <FieldItemsList items={fields} />
+      {folders.map((item) => (
+        <Accordion.Item className={styles.accordionItem} key={item.key} value={item.key}>
           <div className={styles.accordionHeading}>
             <Accordion.Trigger className={styles.accordionTrigger}>
-              <span className={styles.folderIcon}>{folder.icon}</span>
-              <span>{folder.title}</span>
+              <span className={styles.folderIcon}>{item.node.icon}</span>
+              <span>{item.node.title}</span>
               <ChevronRight className={styles.accordionChevron} aria-hidden />
             </Accordion.Trigger>
-            <FolderActionButtons actions={folder.actions} />
+            <FolderActionButtons actions={item.node.actions} />
           </div>
           <Accordion.Content className={styles.accordionContent}>
-            <FolderBody node={folder} />
+            <FolderBody node={item.node} />
           </Accordion.Content>
         </Accordion.Item>
       ))}
@@ -1095,25 +1107,8 @@ function GridArrangement({ node }: { node: FolderNode }) {
 
 function layoutItems(node: FolderNode): LayoutItem[] {
   return [
-    ...node.folders.map((folder): LayoutItem => ({
-      type: 'folder',
-      key: folder.key,
-      node: folder,
-      order: folder.order,
-      size: folder.size,
-      title: folder.title,
-    })),
-    ...node.fields.map((slot): LayoutItem => {
-      const segment = node.fieldSegments.get(slot.id);
-      return {
-        type: 'field',
-        key: slot.id,
-        order: segment?.order ?? Number.POSITIVE_INFINITY,
-        size: segment?.size,
-        slot,
-        title: segment?.title ?? '',
-      };
-    }),
+    ...node.folders.map(folderLayoutItem),
+    ...node.fields.map((slot) => fieldLayoutItem(node, slot)),
   ].sort((a, b) => {
     const order = a.order - b.order;
     if (order !== 0) return order;
@@ -1121,20 +1116,67 @@ function layoutItems(node: FolderNode): LayoutItem[] {
   });
 }
 
+function folderLayoutItem(folder: FolderNode): LayoutItem {
+  const child = singleRenderableChild(folder);
+  if (child) {
+    return {
+      ...child,
+      key: `${folder.key}/${child.key}`,
+      order: folder.order,
+      size: folder.size ?? child.size,
+      title: folder.title,
+    };
+  }
+
+  return {
+    type: 'folder',
+    key: folder.key,
+    node: folder,
+    order: folder.order,
+    size: folder.size,
+    title: folder.title,
+  };
+}
+
+function fieldLayoutItem(node: FolderNode, slot: SlotRecord): FieldLayoutItem {
+  const segment = node.fieldSegments.get(slot.id);
+  return {
+    type: 'field',
+    key: slot.id,
+    order: segment?.order ?? Number.POSITIVE_INFINITY,
+    segment,
+    size: segment?.size,
+    slot,
+    title: segment?.title ?? '',
+  };
+}
+
+function splitLayoutItems(node: FolderNode): { fields: FieldLayoutItem[]; folders: FolderLayoutItem[] } {
+  const fields: FieldLayoutItem[] = [];
+  const folders: FolderLayoutItem[] = [];
+  for (const item of layoutItems(node)) {
+    if (item.type === 'field') fields.push(item);
+    else folders.push(item);
+  }
+  return { fields, folders };
+}
+
 function LayoutItemRenderer({ item, parentKey }: { item: LayoutItem; parentKey: string }) {
   if (item.type === 'folder') return <FolderRenderer node={item.node} parentKey={parentKey} />;
-  return <FieldHost segment={item.slot.path[item.slot.path.length - 1] as FieldSegment} slotId={item.slot.id} />;
+  return <FieldHost segment={item.segment} slotId={item.slot.id} />;
 }
 
 function FieldList({ node }: { node: FolderNode }) {
   if (node.fields.length === 0) return null;
-  const hasFillField = node.fields.some((slot) => node.fieldSegments.get(slot.id)?.fill);
+  return <FieldItemsList items={node.fields.map((slot) => fieldLayoutItem(node, slot))} />;
+}
+
+function FieldItemsList({ items }: { items: FieldLayoutItem[] }) {
+  if (items.length === 0) return null;
+  const hasFillField = items.some((item) => item.segment?.fill);
   return (
     <div className={styles.fields} data-fill={hasFillField ? 'true' : 'false'}>
-      {node.fields.map((slot) => {
-        const segment = node.fieldSegments.get(slot.id);
-        return <FieldHost segment={segment} slotId={slot.id} key={slot.id} />;
-      })}
+      {items.map((item) => <FieldHost segment={item.segment} slotId={item.slot.id} key={item.key} />)}
     </div>
   );
 }

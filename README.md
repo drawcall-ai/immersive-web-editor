@@ -19,15 +19,13 @@ Immersive Web Editor turns authored values into visual controls. It is especiall
 Group related values, then spread them into the props they drive.
 
 ```tsx
-import { color, config, number, position3D, rotation3D, scale3D, val } from 'immersive-web-editor';
+import { color, config, number, transform3D, val } from 'immersive-web-editor';
 
 function Hero() {
   const hero = config('Hero', {
     mesh: {
       visible: val(true),
-      position: val([0, 1, 0], position3D()),
-      rotation: val([0, 0, 0], rotation3D()),
-      scale: val([1, 1, 1], scale3D()),
+      transform: val({"position":[0,1,0],"rotation":[0,0,0],"scale":[1,1,1]}, transform3D()),
     },
     material: {
       color: val('#ff7755', color()),
@@ -36,7 +34,7 @@ function Hero() {
   });
 
   return (
-    <mesh {...hero.mesh}>
+    <mesh visible={hero.mesh.visible} {...hero.mesh.transform}>
       <boxGeometry />
       <meshStandardMaterial {...hero.material} />
     </mesh>
@@ -68,7 +66,7 @@ Keep values JSON-shaped. Avoid derived values, frame-by-frame state, secrets, ca
 
 ## Custom schemas
 
-Use built-in schemas like `number`, `color`, `position3D`, `rotation3D`, and `scale3D` first. Create a schema with `defineField()` when a domain-specific control is worth it.
+Use built-in schemas like `number`, `color`, `position3D`, and `transform3D` first. Create a schema with `defineField()` when a domain-specific control is worth it.
 
 Built-in schema options live in one object:
 
