@@ -61,8 +61,8 @@ importers:
         specifier: ^9.6.1
         version: 9.6.1(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(three@0.184.0)
       '@react-three/start':
-        specifier: ^0.1.3
-        version: 0.1.3(@react-three/fiber@9.6.1(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(three@0.184.0))(@types/node@22.19.19)(lightningcss@1.32.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(three@0.184.0)
+        specifier: ^0.1.4
+        version: 0.1.4(@react-three/fiber@9.6.1(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(three@0.184.0))(@types/node@22.19.19)(lightningcss@1.32.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(three@0.184.0)
       immersive-web-editor:
         specifier: workspace:*
         version: link:../../packages/immersive-web-editor
@@ -810,8 +810,8 @@ packages:
       '@fortawesome/fontawesome-svg-core': ~1 || ~6
       react: '>=16.3'
 
-  '@immersive-web-editor/adapter@0.0.22':
-    resolution: {integrity: sha512-PzUilhO+O8QCG29T9H8Y1Mv8xHSLO6LiuCM/GZ5DS1M78nuMjFAujxuxARG0YuasTlGYt/Pkl8VlsW0C/8DF0Q==}
+  '@immersive-web-editor/adapter@0.0.23':
+    resolution: {integrity: sha512-FWEOVytXiYFeYLGaTGyhZBGCjJRSLSJrstnhyyzKk6FOgd0QDiuhPxpK8HKupXNkoralN2pAHh7OPGb7p7E5BQ==}
 
   '@iwer/devui@1.1.2':
     resolution: {integrity: sha512-ggF1lXSX14BTYP0QzB4xaurySr2PC+3+rtK/dpCR++giWquzFv2mBw3LW/PaCtdl5mqkZMrQ2GSwfUNg9ZoO+w==}
@@ -1268,8 +1268,8 @@ packages:
       react: '>=18'
       three: '*'
 
-  '@react-three/start@0.1.3':
-    resolution: {integrity: sha512-mr59Gczdz3B927JFD9iePKe5sqLDKBpsfCIZXXB5icEmVsevML87Z3cwfBU9EznsCowH383v2gbxHD3UsWMPDg==}
+  '@react-three/start@0.1.4':
+    resolution: {integrity: sha512-888YMhzMS7A2wftWOiO6nBhcrRFC8Uci2+/Qj9kAhGlvMf0uSaYqAT23NKgGk8yhC9TNjKrZ/qFr19qDRRMgJA==}
     hasBin: true
     peerDependencies:
       '@react-three/fiber': '>=9'
@@ -3004,7 +3004,7 @@ snapshots:
       prop-types: 15.8.1
       react: 19.2.6
 
-  '@immersive-web-editor/adapter@0.0.22': {}
+  '@immersive-web-editor/adapter@0.0.23': {}
 
   '@iwer/devui@1.1.2(@types/react@19.2.14)(iwer@2.2.1)':
     dependencies:
@@ -3483,10 +3483,10 @@ snapshots:
       - '@types/react'
       - immer
 
-  '@react-three/start@0.1.3(@react-three/fiber@9.6.1(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(three@0.184.0))(@types/node@22.19.19)(lightningcss@1.32.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(three@0.184.0)':
+  '@react-three/start@0.1.4(@react-three/fiber@9.6.1(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(three@0.184.0))(@types/node@22.19.19)(lightningcss@1.32.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(three@0.184.0)':
     dependencies:
       '@babel/parser': 7.29.3
-      '@immersive-web-editor/adapter': 0.0.22
+      '@immersive-web-editor/adapter': 0.0.23
       '@react-three/fiber': 9.6.1(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(three@0.184.0)
       '@vitejs/plugin-react': 4.7.0(vite@6.4.2(@types/node@22.19.19)(lightningcss@1.32.0))
       cac: 7.0.0
