@@ -25,6 +25,7 @@ export interface FieldDescriptor {
     path: SlotPath;
     field: FieldDescriptor;
     configFolder: FolderSegment;
+    configPath: readonly FolderSegment[];
     dataPath: readonly (string | number)[];
     panelFolder: FolderSegment;
     viewPath: readonly (string | number | FolderSegment)[];
@@ -37,6 +38,7 @@ export interface FieldDescriptor {
       value: JsonValue;
       viewPath: readonly (string | number | FolderSegment)[];
     }): ReactNode;
+    renderSlot(children: ReactNode, path?: SlotPath): ReactNode;
     folder(
       title: string | number,
       prefix: string,
@@ -47,7 +49,7 @@ export interface FieldDescriptor {
     fieldSegment(
       title: string | number,
       id: string,
-      options?: Pick<FieldSegment, 'fill' | 'hidden' | 'icon' | 'interactive' | 'order' | 'size' | 'unstyled'>,
+      options?: Partial<Pick<FieldSegment, 'fill' | 'hidden' | 'icon' | 'interactive' | 'order' | 'size' | 'unstyled'>>,
     ): FieldSegment;
     slotPath(parts: readonly (string | number | FolderSegment)[], leaf: FieldSegment): SlotPath;
     defaultValue(field: FieldDescriptor): JsonValue;

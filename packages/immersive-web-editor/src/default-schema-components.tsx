@@ -1,21 +1,13 @@
 /// <reference path="./lucide-icon-modules.d.ts" />
 
 import { cx } from '@emotion/css';
-import {
-  BooleanField,
-  ColorField,
-  NumberField,
-  Slot,
-  StringField,
-  Vector3Field,
-  type FolderSegment,
-} from '@immersive-web-editor/ui';
+import type { FolderSegment } from '@immersive-web-editor/ui';
 import { PivotHandlesContext, PivotHandlesHandles, TransformHandles, defaultApply } from '@react-three/handle';
 import Plus from 'lucide-react/dist/esm/icons/plus.js';
 import ToggleLeft from 'lucide-react/dist/esm/icons/toggle-left.js';
 import Upload from 'lucide-react/dist/esm/icons/upload.js';
 import X from 'lucide-react/dist/esm/icons/x.js';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { OverlayCanvasPortal } from './client/overlay-canvas';
 import { styles } from './client/styles';
 import {
@@ -152,32 +144,114 @@ function CommittedNumberInput({
   );
 }
 
-export const StringFieldComponent: EditorFieldComponent = ({ field, path, setValue, value }) => (
-  <StringField
-    path={path}
+function CommittedStringInput({
+  multiline,
+  onCommit,
+  placeholder,
+  value,
+}: {
+  multiline?: boolean;
+  onCommit(value: string): void;
+  placeholder?: string;
+  value: string;
+}) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+
+  const commit = (next = draft) => {
+    if (next !== value) onCommit(next);
+  };
+
+  const sharedProps = {
+    placeholder,
+    value: draft,
+    onBlur: () => commit(),
+    onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setDraft(event.currentTarget.value),
+    onKeyDown: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      if (event.key === 'Enter' && !multiline) {
+        commit(event.currentTarget.value);
+        event.currentTarget.blur();
+      }
+      if (event.key === 'Escape') {
+        setDraft(value);
+        event.currentTarget.blur();
+      }
+    },
+  };
+
+  return multiline
+    ? <textarea className={styles.configTextarea} {...sharedProps} />
+    : <input className={styles.configInput} {...sharedProps} />;
+}
+
+function VectorInput({
+  field,
+  setValue,
+  size,
+  value,
+}: {
+  field: FieldDescriptor;
+  setValue(value: JsonValue): void | Promise<void>;
+  size: 2 | 3;
+  value: JsonValue;
+}) {
+  const vector = Array.isArray(value) ? value : [];
+  return (
+    <div className={cx(styles.configVector, size === 2 && styles.configVector2)}>
+      {Array.from({ length: size }, (_, index) => (
+        <CommittedNumberInput
+          ariaLabel={['x', 'y', 'z'][index] ?? String(index)}
+          key={index}
+          max={propNumber(field.props, 'max')}
+          min={propNumber(field.props, 'min')}
+          value={vectorInput(value, index)}
+          step={propNumber(field.props, 'step') ?? 1}
+          onCommit={(nextValue) => {
+            const next = Array.from({ length: size }, (_, itemIndex) => vectorInput(vector, itemIndex)) as Vector2 | Vector3;
+            next[index] = nextValue;
+            setValue(next);
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+export const StringFieldComponent: EditorFieldComponent = ({ field, setValue, value }) => (
+  <CommittedStringInput
+    multiline={propsObject(field.props).multiline === true}
     value={typeof value === 'string' ? value : ''}
     placeholder={propString(field.props, 'placeholder')}
-    onCommit={(next) => setValue(next)}
+    onCommit={(next) => void setValue(next)}
   />
 );
 
-export const NumberFieldComponent: EditorFieldComponent = ({ field, path, setValue, value }) => (
-  <NumberField
-    path={path}
+export const NumberFieldComponent: EditorFieldComponent = ({ field, setValue, value }) => (
+  <CommittedNumberInput
+    ariaLabel={field.label ?? 'Number'}
     value={typeof value === 'number' && Number.isFinite(value) ? value : 0}
     min={propNumber(field.props, 'min')}
     max={propNumber(field.props, 'max')}
-    step={propNumber(field.props, 'step')}
-    onCommit={(next) => setValue(next)}
+    step={propNumber(field.props, 'step') ?? 1}
+    onCommit={(next) => void setValue(next)}
   />
 );
 
-export const BooleanFieldComponent: EditorFieldComponent = ({ path, setValue, value }) => (
-  <BooleanField path={path} value={typeof value === 'boolean' ? value : false} onCommit={(next) => setValue(next)} />
+export const BooleanFieldComponent: EditorFieldComponent = ({ setValue, value }) => (
+  <label className={styles.configToggle}>
+    <input type="checkbox" checked={typeof value === 'boolean' ? value : false} onChange={(event) => setValue(event.currentTarget.checked)} />
+    <span>{value ? 'On' : 'Off'}</span>
+  </label>
 );
 
-export const ColorFieldComponent: EditorFieldComponent = ({ path, setValue, value }) => (
-  <ColorField path={path} value={typeof value === 'string' ? value : '#ffffff'} onCommit={(next) => setValue(next)} />
+export const ColorFieldComponent: EditorFieldComponent = ({ setValue, value }) => (
+  <input
+    className={cx(styles.configInput, styles.configColor)}
+    type="color"
+    value={typeof value === 'string' ? value : '#ffffff'}
+    onChange={(event) => setValue(event.currentTarget.value)}
+    onBlur={(event) => setValue(event.currentTarget.value)}
+  />
 );
 
 const PUBLIC_FILES_QUERY_KEY = '__editor:public-files';
@@ -371,50 +445,21 @@ function FileUrlInput({
   );
 }
 
-export const FileUrlFieldComponent: EditorFieldComponent = ({ field, path, setValue, value }) => {
+export const FileUrlFieldComponent: EditorFieldComponent = ({ field, setValue, value }) => {
   const current = typeof value === 'string' ? value : '';
   const accept = propString(field.props, 'accept');
-  return (
-    <Slot path={path}>
-      <FileUrlInput accept={accept} value={current} setValue={(next) => setValue(next)} />
-    </Slot>
-  );
+  return <FileUrlInput accept={accept} value={current} setValue={(next) => setValue(next)} />;
 };
 
-export const Vector2FieldComponent: EditorFieldComponent = ({ field, path, setValue, value }) => {
-  const vector = Array.isArray(value) ? value : [];
-  return (
-    <Slot path={path}>
-      <div className={cx(styles.configVector, styles.configVector2)}>
-        {[0, 1].map((index) => (
-          <CommittedNumberInput
-            ariaLabel={index === 0 ? 'x' : 'y'}
-            key={index}
-            max={propNumber(field.props, 'max')}
-            min={propNumber(field.props, 'min')}
-            value={vectorInput(value, index)}
-            step={propNumber(field.props, 'step') ?? 1}
-            onCommit={(nextValue) => {
-              const next: Vector2 = [vectorInput(vector, 0), vectorInput(vector, 1)];
-              next[index] = nextValue;
-              setValue(next);
-            }}
-          />
-        ))}
-      </div>
-    </Slot>
-  );
-};
-
-export const Vector3FieldComponent: EditorFieldComponent = ({ path, setValue, value }) => (
-  <Vector3Field
-    path={path}
-    value={[vectorInput(value, 0), vectorInput(value, 1), vectorInput(value, 2)]}
-    onCommit={(next) => setValue(next)}
-  />
+export const Vector2FieldComponent: EditorFieldComponent = ({ field, setValue, value }) => (
+  <VectorInput field={field} size={2} value={value} setValue={setValue} />
 );
 
-export const Vector3WithHandleFieldComponent: EditorFieldComponent = ({ field, path, setValue, value }) => {
+export const Vector3FieldComponent: EditorFieldComponent = ({ field, setValue, value }) => (
+  <VectorInput field={field} size={3} value={value} setValue={setValue} />
+);
+
+export const Vector3WithHandleFieldComponent: EditorFieldComponent = ({ field, setValue, value }) => {
   const handle = propString(field.props, 'handle');
   const mode = handle === 'rotate' || handle === 'scale' ? handle : 'translate';
   const fallback = vector3Value(field.defaultValue ?? null, mode === 'scale' ? [1, 1, 1] : [0, 0, 0]);
@@ -429,7 +474,7 @@ export const Vector3WithHandleFieldComponent: EditorFieldComponent = ({ field, p
 
   return (
     <>
-      <Vector3Field path={path} value={vector} onCommit={(next) => setValue(next)} />
+      <VectorInput field={field} size={3} value={vector} setValue={setValue} />
       <OverlayCanvasPortal>
         {mode === 'translate' && <TransformHandles fixed mode="translate" position={vector} size={0.75} apply={apply} />}
         {mode === 'rotate' && <TransformHandles fixed mode="rotate" rotation={vector} size={0.75} apply={apply} />}
@@ -442,13 +487,14 @@ export const Vector3WithHandleFieldComponent: EditorFieldComponent = ({ field, p
 const DEFAULT_TRANSFORM_3D: Transform3D = { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] };
 
 export const Transform3DFieldComponent: EditorFieldComponent = ({
-  configFolder,
+  configPath,
   dataPath,
   field,
   fieldSegment,
   folder,
   label,
   panelFolder,
+  renderSlot,
   setValue,
   slotPath,
   value,
@@ -457,7 +503,7 @@ export const Transform3DFieldComponent: EditorFieldComponent = ({
   const fallback = transform3DValue(field.defaultValue ?? null, DEFAULT_TRANSFORM_3D);
   const current = transform3DValue(value, fallback);
   const parent = [
-    configFolder,
+    ...configPath,
     panelFolder,
     ...viewPath.slice(0, -1),
     folder(label, `transform3d:${dataPath.join('.')}`, undefined, 'accordion', { defaultCollapsed: false }),
@@ -476,9 +522,18 @@ export const Transform3DFieldComponent: EditorFieldComponent = ({
 
   return (
     <>
-      <Vector3Field path={slotPath(parent, fieldSegment('Position', `${dataPath.join('.')}:position`))} value={current.position} onCommit={(next) => commit('position', next)} />
-      <Vector3Field path={slotPath(parent, fieldSegment('Rotation', `${dataPath.join('.')}:rotation`))} value={current.rotation} onCommit={(next) => commit('rotation', next)} />
-      <Vector3Field path={slotPath(parent, fieldSegment('Scale', `${dataPath.join('.')}:scale`))} value={current.scale} onCommit={(next) => commit('scale', next)} />
+      {renderSlot(
+        <VectorInput field={field} size={3} value={current.position} setValue={(next) => commit('position', next as Vector3)} />,
+        slotPath(parent, fieldSegment('Position', `${dataPath.join('.')}:position`)),
+      )}
+      {renderSlot(
+        <VectorInput field={field} size={3} value={current.rotation} setValue={(next) => commit('rotation', next as Vector3)} />,
+        slotPath(parent, fieldSegment('Rotation', `${dataPath.join('.')}:rotation`)),
+      )}
+      {renderSlot(
+        <VectorInput field={field} size={3} value={current.scale} setValue={(next) => commit('scale', next as Vector3)} />,
+        slotPath(parent, fieldSegment('Scale', `${dataPath.join('.')}:scale`)),
+      )}
       <OverlayCanvasPortal>
         <PivotHandlesContext
           position={current.position}
@@ -510,7 +565,7 @@ export const ObjectFieldComponent: EditorFieldComponent = ({ dataPath, defaultVa
 };
 
 export const ArrayFieldComponent: EditorFieldComponent = ({
-  configFolder,
+  configPath,
   dataPath,
   defaultValue,
   field,
@@ -519,6 +574,7 @@ export const ArrayFieldComponent: EditorFieldComponent = ({
   label,
   panelFolder,
   renderField,
+  renderSlot,
   setValue,
   slotPath,
   value,
@@ -545,9 +601,7 @@ export const ArrayFieldComponent: EditorFieldComponent = ({
   return (
     <>
       {current.length === 0 && (
-        <Slot path={slotPath([configFolder, panelFolder, ...viewPath.slice(0, -1), arrayFolder], fieldSegment('', `empty:${dataPath.join('.')}`, { hidden: true }))}>
-          {null}
-        </Slot>
+        renderSlot(null, slotPath([...configPath, panelFolder, ...viewPath.slice(0, -1), arrayFolder], fieldSegment('', `empty:${dataPath.join('.')}`, { hidden: true })))
       )}
       {current.map((itemValue, index) => {
         const itemLabel = `${itemLabelValue ?? 'Item'} ${index + 1}`;
@@ -582,7 +636,7 @@ export const ArrayFieldComponent: EditorFieldComponent = ({
 };
 
 export const OptionalFieldComponent: EditorFieldComponent = ({
-  configFolder,
+  configPath,
   dataPath,
   defaultValue,
   field,
@@ -590,6 +644,7 @@ export const OptionalFieldComponent: EditorFieldComponent = ({
   panelFolder,
   path,
   renderField,
+  renderSlot,
   setValue,
   slotPath,
   value,
@@ -597,12 +652,11 @@ export const OptionalFieldComponent: EditorFieldComponent = ({
 }) => {
   const item = propDescriptor(field.props, 'item') ?? json().descriptor;
   if (value === null) {
-    return (
-      <Slot path={path}>
+    return renderSlot(
         <button className={styles.configButton} type="button" onClick={() => setValue(defaultValue(item))}>
           Set value
-        </button>
-      </Slot>
+        </button>,
+        path,
     );
   }
 
@@ -615,17 +669,18 @@ export const OptionalFieldComponent: EditorFieldComponent = ({
         viewPath,
         setValue,
       })}
-      <Slot path={slotPath([configFolder, panelFolder, ...viewPath.slice(0, -1)], fieldSegment(`${pathTitle(viewPath.at(-1))} state`, `optional:${dataPath.join('.')}`, { icon: <ToggleLeft aria-hidden /> }))}>
+      {renderSlot(
         <button className={styles.configButton} type="button" onClick={() => setValue(null)}>
           Clear
-        </button>
-      </Slot>
+        </button>,
+        slotPath([...configPath, panelFolder, ...viewPath.slice(0, -1)], fieldSegment(`${pathTitle(viewPath.at(-1))} state`, `optional:${dataPath.join('.')}`, { icon: <ToggleLeft aria-hidden /> })),
+      )}
     </>
   );
 };
 
-export const JsonFieldComponent: EditorFieldComponent = ({ path, setValue, value }) => (
-  <Slot path={path}>
+export const JsonFieldComponent: EditorFieldComponent = ({ path, renderSlot, setValue, value }) => (
+  renderSlot(
     <textarea
       className={styles.configTextarea}
       value={JSON.stringify(value, null, 2)}
@@ -636,6 +691,7 @@ export const JsonFieldComponent: EditorFieldComponent = ({ path, setValue, value
           // Keep the draft visible until it becomes valid JSON.
         }
       }}
-    />
-  </Slot>
+    />,
+    path,
+  )
 );

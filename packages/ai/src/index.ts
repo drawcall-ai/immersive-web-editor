@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, parse, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { EditorPlugin } from 'immersive-web-editor';
+import type { EditorFolderPath, EditorPlugin } from 'immersive-web-editor';
 
 export interface AiChatPluginOptions {
   enabled?: boolean;
@@ -13,6 +13,7 @@ export interface AiChatPluginOptions {
   autoStart?: boolean;
   command?: string;
   env?: Record<string, string>;
+  path?: EditorFolderPath;
 }
 
 type AiStatus =
@@ -24,6 +25,10 @@ type AiStatus =
 const OC_PROXY_PREFIX = '/__editor/oc';
 const AI_STATUS_PATH = '/__editor/ai/status';
 const DEFAULT_PORT = 4096;
+const DEFAULT_AI_PATH: EditorFolderPath = [
+  { id: 'editor-root', title: 'Editor', arrangement: 'dock-row' },
+  { id: 'editor-chat', title: 'Chat', arrangement: 'dropdown', hideTitle: true, order: 10, size: 24 },
+];
 
 const HOP_BY_HOP = new Set([
   'connection',
@@ -41,18 +46,18 @@ const entryFile = fileURLToPath(import.meta.url);
 const here = dirname(entryFile);
 const clientEntry = entryFile.endsWith('.ts')
   ? resolve(here, 'client', 'register.tsx')
-  : '@immersive-web-editor/ai/register';
+  : resolve(here, 'client', 'register.js');
 
 class OpencodeBackend {
   private proc: ChildProcessWithoutNullStreams | null = null;
   private startPromise: Promise<void> | null = null;
   private status: AiStatus;
-  private options: Required<Omit<AiChatPluginOptions, 'command' | 'env'>> & {
+  private options: Required<Omit<AiChatPluginOptions, 'command' | 'env' | 'path'>> & {
     command: string;
     env: Record<string, string>;
   };
 
-  constructor(options: Required<Omit<AiChatPluginOptions, 'command' | 'env'>> & {
+  constructor(options: Required<Omit<AiChatPluginOptions, 'command' | 'env' | 'path'>> & {
     command: string;
     env: Record<string, string>;
   }) {
@@ -300,6 +305,7 @@ export function ai(options: AiChatPluginOptions = {}): EditorPlugin {
   return {
     name: 'ai-chat',
     client: clientEntry,
+    path: options.path ?? DEFAULT_AI_PATH,
     commands: [
       {
         id: 'editor.chat.focus',

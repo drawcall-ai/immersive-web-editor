@@ -7,14 +7,8 @@
     "url": "git+https://github.com/drawcall-ai/immersive-web-editor.git",
     "directory": "packages/ui"
   },
-  "main": "./src/index.tsx",
-  "types": "./src/index.tsx",
-  "exports": {
-    ".": {
-      "types": "./src/index.tsx",
-      "import": "./src/index.tsx"
-    }
-  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "files": [
     "src",
     "dist"
@@ -25,13 +19,7 @@
   "publishConfig": {
     "access": "public",
     "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "exports": {
-      ".": {
-        "types": "./dist/index.d.ts",
-        "import": "./dist/index.js"
-      }
-    }
+    "types": "./dist/index.d.ts"
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",

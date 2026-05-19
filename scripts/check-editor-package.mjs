@@ -6,8 +6,8 @@ const { default: editorPlugin } = await import(new URL('dist/index.js', packageD
 const plugin = editorPlugin();
 const shellModule = plugin.load('\0virtual:editor/shell');
 
-if (typeof shellModule !== 'string' || !shellModule.includes('immersive-web-editor/editor-shell')) {
-  throw new Error('dist/index.js must load the built editor shell.');
+if (typeof shellModule !== 'string' || !shellModule.includes('/src/editor/index.tsx')) {
+  throw new Error('dist/index.js must prefer the source editor entry when src is present.');
 }
 
 const packJson = execFileSync('npm', ['pack', '--dry-run', '--json'], {
@@ -19,6 +19,9 @@ const files = new Set(pack.files.map((file) => file.path));
 
 for (const file of [
   'dist/index.js',
+  'dist/plugin/index.js',
+  'dist/app/index.js',
+  'dist/editor/index.js',
   'dist/client/editor-shell.js',
   'dist/client/palette.js',
   'dist/client/styles.js',

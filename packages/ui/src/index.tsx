@@ -1161,9 +1161,13 @@ function splitLayoutItems(node: FolderNode): { fields: FieldLayoutItem[]; folder
   return { fields, folders };
 }
 
+function slotPathTitle(path: SlotPath): string {
+  return path.map((segment) => segment.title).join('/');
+}
+
 function LayoutItemRenderer({ item, parentKey }: { item: LayoutItem; parentKey: string }) {
   if (item.type === 'folder') return <FolderRenderer node={item.node} parentKey={parentKey} />;
-  return <FieldHost segment={item.segment} slotId={item.slot.id} />;
+  return <FieldHost pathTitle={slotPathTitle(item.slot.path)} segment={item.segment} slotId={item.slot.id} />;
 }
 
 function FieldList({ node }: { node: FolderNode }) {
@@ -1176,12 +1180,27 @@ function FieldItemsList({ items }: { items: FieldLayoutItem[] }) {
   const hasFillField = items.some((item) => item.segment?.fill);
   return (
     <div className={styles.fields} data-fill={hasFillField ? 'true' : 'false'}>
-      {items.map((item) => <FieldHost segment={item.segment} slotId={item.slot.id} key={item.key} />)}
+      {items.map((item) => (
+        <FieldHost
+          key={item.key}
+          pathTitle={slotPathTitle(item.slot.path)}
+          segment={item.segment}
+          slotId={item.slot.id}
+        />
+      ))}
     </div>
   );
 }
 
-function FieldHost({ segment, slotId }: { segment: FieldSegment | undefined; slotId: string }) {
+function FieldHost({
+  pathTitle,
+  segment,
+  slotId,
+}: {
+  pathTitle: string;
+  segment: FieldSegment | undefined;
+  slotId: string;
+}) {
   const { registerTarget } = useEditor();
   const setTarget = useCallback((element: HTMLDivElement | null) => {
     registerTarget(slotId, element);
@@ -1193,6 +1212,8 @@ function FieldHost({ segment, slotId }: { segment: FieldSegment | undefined; slo
       data-align={segment?.align ?? 'stretch'}
       data-fill={segment?.fill ? 'true' : 'false'}
       data-hidden={segment?.hidden ? 'true' : 'false'}
+      data-editor-slot-id={slotId}
+      data-editor-slot-path={pathTitle}
       data-show-label={segment?.fill ? 'false' : 'true'}
       data-unstyled={segment?.unstyled ? 'true' : 'false'}
     >

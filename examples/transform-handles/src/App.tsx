@@ -1,4 +1,4 @@
-import { publishEditorCamera } from '@immersive-web-editor/adapter';
+import { publishEditorCamera, publishPreviewViewport } from '@immersive-web-editor/adapter';
 import { Canvas, useLoader, useThree } from '@react-three/fiber';
 import { useEffect } from 'react';
 import { SRGBColorSpace, TextureLoader } from 'three';
@@ -12,18 +12,26 @@ type Transform = {
 
 function PreviewCameraSync() {
   const camera = useThree((state) => state.camera);
+  const gl = useThree((state) => state.gl);
   const invalidate = useThree((state) => state.invalidate);
 
   useEffect(() => {
-    return publishEditorCamera((matrix) => {
+    const disposeEditorCamera = publishEditorCamera((editorCamera) => {
       camera.matrixAutoUpdate = false;
-      camera.matrix.fromArray(matrix);
+      camera.matrix.fromArray(editorCamera.matrixWorld);
       camera.matrix.decompose(camera.position, camera.quaternion, camera.scale);
       camera.updateMatrixWorld(true);
       camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+      camera.projectionMatrix.fromArray(editorCamera.projectionMatrix);
+      camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
       invalidate();
     });
-  }, [camera, invalidate]);
+    const viewport = publishPreviewViewport(gl.domElement);
+    return () => {
+      disposeEditorCamera();
+      viewport.dispose();
+    };
+  }, [camera, gl, invalidate]);
 
   return null;
 }

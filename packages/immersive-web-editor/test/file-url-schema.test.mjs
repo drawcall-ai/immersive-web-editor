@@ -87,3 +87,21 @@ const object = config('Transform Handle', {
   assert.match(result.code, /"path":\["fov"\]/);
   assert.match(result.code, /fov:\s*val\(\{"id":"editor:/);
 });
+
+test('custom field component references resolve relative modules for the editor', () => {
+  const plugin = editorPlugin();
+  const source = `import { config, defineField, editorComponent, val } from 'immersive-web-editor';
+const custom = defineField({
+  defaultValue: "hello",
+  component: editorComponent('./custom-field-components.tsx', 'MoodFieldComponent'),
+});
+const object = config('Custom', {
+  title: val("hello", custom)
+});`;
+
+  const file = fileURLToPath(new URL('../examples/vite-react-ai/src/custom-fields.tsx', import.meta.url));
+  const result = plugin.transform(source, file);
+
+  assert.match(result.code, /component:\s*\{"module":"\/@fs\/.*custom-field-components\.tsx","exportName":"MoodFieldComponent"\}/);
+  assert.equal(result.code.includes('editorComponent('), false);
+});

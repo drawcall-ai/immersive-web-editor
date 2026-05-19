@@ -26,6 +26,17 @@ export const styles = {
     padding: '6px 7px',
     '&:focus': { outline: '2px solid rgba(9, 9, 11, 0.08)', borderColor: '#d4d4d8' },
   }),
+  configColor: css({ minHeight: 30, padding: 3 }),
+  configToggle: css({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 7,
+    minHeight: 28,
+    fontSize: 12,
+    color: '#09090b',
+    cursor: 'pointer',
+    '& input': { margin: 0 },
+  }),
   configSelect: css({
     width: '100%',
     minWidth: 0,
@@ -94,7 +105,20 @@ export const styles = {
   configFileError: css({ color: '#b42318', fontSize: 11, lineHeight: 1.35 }),
   configCustomField: css({ minWidth: 0 }),
   configMissingField: css({ color: '#52525b', fontSize: 12 }),
+  previewFrameSlot: css({ position: 'relative', width: '100%', height: '100%', minWidth: 0, minHeight: 0 }),
   iframe: css({ width: '100%', height: '100%', border: 'none', background: '#ffffff', display: 'block' }),
+  previewCanvasLayer: css({
+    position: 'relative',
+    width: '100%',
+    height: '100%',
+    minWidth: 0,
+    minHeight: 0,
+    overflow: 'hidden',
+  }),
+  previewCanvasViewport: css({
+    position: 'absolute',
+    overflow: 'hidden',
+  }),
   previewCanvas: css({
     width: '100%',
     height: '100%',
@@ -107,6 +131,8 @@ export const styles = {
     },
   }),
   previewLoading: css({
+    position: 'absolute',
+    inset: 0,
     width: '100%',
     height: '100%',
     display: 'grid',

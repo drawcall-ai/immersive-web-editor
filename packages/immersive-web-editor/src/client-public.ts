@@ -2,6 +2,7 @@ export {
   config,
   configurable,
   defineField,
+  editorComponent,
   val,
   type DefineFieldOptions,
   type EditorComponentRef,

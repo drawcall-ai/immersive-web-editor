@@ -4,7 +4,7 @@
 // immersive-web-editor: preview, contributed plugins, and config fields are all
 // rendered as Slot leaves.
 
-import { createElement, isValidElement, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react';
+import { createElement, isValidElement, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   Editor as WorkbenchEditor,
@@ -14,12 +14,11 @@ import {
   type FolderSegment,
   type SlotPath,
 } from '@immersive-web-editor/ui';
-import { receiveEditorCamera, type ReceivedEditorCamera } from '@immersive-web-editor/adapter';
+import { receiveEditorCamera, receivePreviewViewport, type PreviewViewport, type ReceivedEditorCamera } from '@immersive-web-editor/adapter';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitHandles } from '@react-three/handle';
 import { PointerEvents, noEvents } from '@react-three/xr';
 import Bot from 'lucide-react/dist/esm/icons/bot.js';
-import Box from 'lucide-react/dist/esm/icons/box.js';
 import FileText from 'lucide-react/dist/esm/icons/file-text.js';
 import FolderIcon from 'lucide-react/dist/esm/icons/folder.js';
 import Loader2 from 'lucide-react/dist/esm/icons/loader-2.js';
@@ -39,8 +38,11 @@ import { styles } from './styles';
 import type { CommandOptions, FieldDescriptor } from './sdk';
 import * as defaultSchemaComponents from '../default-schema-components';
 import {
+  configPath as configuredConfigPath,
+  overlayPath as configuredOverlayPath,
   pluginCommands as configuredPluginCommands,
   pluginModules as configuredPluginModules,
+  previewPath as configuredPreviewPath,
   previewUrl as configuredPreviewUrl,
 } from 'virtual:editor/config';
 import {
@@ -50,6 +52,13 @@ import {
   type FieldRegistration,
   type JsonValue,
 } from '../rpc';
+import type {
+  EditorFieldPathSegment,
+  EditorFolderPath,
+  EditorFolderPathSegment,
+  EditorRootPathSegment,
+  EditorSlotPath,
+} from '../plugin/options';
 
 interface FieldActionOptions {
   id: string;
@@ -83,15 +92,12 @@ interface InitialCommand {
 
 interface EditorConfig {
   previewUrl: string;
-  pluginModules: Array<{ name: string; module: EditorPluginModule }>;
+  previewPath: EditorSlotPath;
+  overlayPath: EditorSlotPath;
+  configPath: EditorFolderPath;
+  pluginModules: Array<{ name: string; module: EditorPluginModule; path?: EditorFolderPath }>;
   pluginCommands: InitialCommand[];
 }
-
-const PANEL_PREVIEW = 'editor:preview';
-const PANEL_CONFIG = 'editor:config';
-const PREVIEW_FRAME = 'editor:preview:frame';
-const PREVIEW_OVERLAY = 'editor:preview:overlay';
-const PREVIEW_LOADING = 'editor:preview:loading';
 
 type ContributionSource = Window | object;
 
@@ -105,6 +111,7 @@ interface RuntimeMountedField {
   title: string;
   actions?: FieldActionOptions[];
   mount: MountedFieldOptions['mount'];
+  path?: FolderSegment[];
   source: ContributionSource;
   order: number;
 }
@@ -187,13 +194,6 @@ const fieldStore = {
   },
 };
 
-const workbenchRoot: EditorRoot = {
-  id: 'editor-root',
-  title: 'Editor',
-  icon: <Box aria-hidden />,
-  arrangement: 'dock-row',
-};
-
 function segmentId(value: string | number, prefix: string): string {
   return `${prefix}:${String(value).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'untitled'}`;
 }
@@ -219,7 +219,7 @@ function folderSegment(
 function fieldSegment(
   title: string | number,
   id: string,
-  options?: Pick<FieldSegment, 'fill' | 'hidden' | 'icon' | 'interactive' | 'order' | 'size' | 'unstyled'>,
+  options?: Partial<Pick<FieldSegment, 'fill' | 'hidden' | 'icon' | 'interactive' | 'order' | 'size' | 'unstyled'>>,
 ): FieldSegment {
   return {
     id: segmentId(id, 'field'),
@@ -229,10 +229,59 @@ function fieldSegment(
   };
 }
 
+function rootSegment(segment: EditorRootPathSegment): EditorRoot {
+  return {
+    id: segment.id,
+    title: segment.title,
+    icon: folderIcon(segment.title, segment.id ?? segment.title),
+    arrangement: segment.arrangement,
+  };
+}
+
+function folderPathSegment(segment: EditorFolderPathSegment): FolderSegment {
+  return {
+    id: segment.id,
+    title: segment.title,
+    icon: folderIcon(segment.title, segment.id ?? segment.title),
+    arrangement: segment.arrangement,
+    defaultActive: segment.defaultActive,
+    defaultCollapsed: segment.defaultCollapsed,
+    hideTitle: segment.hideTitle,
+    order: segment.order,
+    size: segment.size,
+  };
+}
+
+function fieldPathSegment(segment: EditorFieldPathSegment): FieldSegment {
+  return {
+    id: segment.id,
+    title: segment.title,
+    icon: <Type aria-hidden />,
+    align: segment.align,
+    fill: segment.fill,
+    hidden: segment.hidden,
+    interactive: segment.interactive,
+    order: segment.order,
+    size: segment.size,
+    unstyled: segment.unstyled,
+  };
+}
+
+function configuredSlotPath(path: EditorSlotPath): SlotPath {
+  return [
+    ...path.slice(1, -1).map((segment) => folderPathSegment(segment as EditorFolderPathSegment)),
+    fieldPathSegment(path[path.length - 1] as EditorFieldPathSegment),
+  ] as SlotPath;
+}
+
+function configuredFolderPath(path: EditorFolderPath): FolderSegment[] {
+  return path.slice(1).map((segment) => folderPathSegment(segment));
+}
+
 function folderIcon(title: string, id: string): ReactNode {
   const normalized = `${id} ${title}`.toLowerCase();
   if (normalized.includes('preview')) return <MonitorPlay aria-hidden />;
-  if (id === PANEL_CONFIG) return <SlidersHorizontal aria-hidden />;
+  if (normalized.includes('config')) return <SlidersHorizontal aria-hidden />;
   if (normalized.includes('chat')) return <Bot aria-hidden />;
   if (normalized.includes('notes')) return <FileText aria-hidden />;
   return <FolderIcon aria-hidden />;
@@ -254,11 +303,11 @@ function slotPath(parts: readonly (string | number | FolderSegment)[], leaf: Fie
   ];
 }
 
-function mountedFieldPath(mount: Pick<RuntimeMountedField, 'actions' | 'id' | 'order' | 'title'>): SlotPath {
+function mountedFieldPath(mount: Pick<RuntimeMountedField, 'actions' | 'id' | 'order' | 'path' | 'title'>): SlotPath {
   if (mount.id.startsWith('editor:chat:')) {
     return slotPath(
       [
-        folderSegment('', 'editor:chat', undefined, 'dropdown', { order: 10, size: 24 }),
+        ...(mount.path ?? []),
         folderSegment(
           mount.title,
           `slot:${mount.id}`,
@@ -273,13 +322,15 @@ function mountedFieldPath(mount: Pick<RuntimeMountedField, 'actions' | 'id' | 'o
 
   return slotPath(
     [
-      folderSegment(
-        'Plugins',
-        'editor:plugins',
-        undefined,
-        'tabs',
-        { order: 10, size: 24 },
-      ),
+      ...(mount.path ?? [
+        folderSegment(
+          'Plugins',
+          'editor:plugins',
+          undefined,
+          'tabs',
+          { order: 10, size: 24 },
+        ),
+      ]),
       folderSegment(
         mount.title,
         `slot:${mount.id}`,
@@ -300,26 +351,6 @@ function slotActions(actions: FieldActionOptions[] | undefined): FolderSegment['
     disabled: action.disabled,
     run: action.run,
   }));
-}
-
-function previewFolder(): FolderSegment {
-  return folderSegment('Preview', PANEL_PREVIEW, undefined, 'layer-stack', {
-    hideTitle: true,
-    order: 20,
-    size: 52,
-  });
-}
-
-function previewLayerPath(title: string, id: string, order: number, interactive = true): SlotPath {
-  return [
-    previewFolder(),
-    fieldSegment(title, id, {
-      fill: true,
-      interactive,
-      order,
-      unstyled: true,
-    }),
-  ];
 }
 
 function focusSlot(id: string): void {
@@ -366,6 +397,9 @@ function descriptorIcon(field: FieldDescriptor): ReactNode {
 
 const editorConfig: EditorConfig = {
   previewUrl: configuredPreviewUrl || '/',
+  previewPath: configuredPreviewPath,
+  overlayPath: configuredOverlayPath,
+  configPath: configuredConfigPath,
   pluginModules: configuredPluginModules,
   pluginCommands: configuredPluginCommands,
 };
@@ -387,10 +421,11 @@ function FieldOutlet({
 }) {
   const rawLabel = (field.label ?? pathPartTitle(viewPath.at(-1))) || inputLabel(fieldRegistration);
   const label = rawLabel || inputLabel(fieldRegistration);
-  const configFolder = folderSegment('Config', PANEL_CONFIG, undefined, 'accordion', { hideTitle: true, order: 30, size: 24 });
+  const configPath = configuredFolderPath(editorConfig.configPath);
+  const configFolder = configPath[configPath.length - 1]!;
   const panelFolder = folderSegment(fieldRegistration.panel, `config:${fieldRegistration.panel}`, undefined, 'accordion');
   const leaf = fieldSegment(label, `${fieldRegistration.id}:${dataPath.join('.') || 'value'}`, { icon: descriptorIcon(field) });
-  const path = slotPath([configFolder, panelFolder, ...viewPath.slice(0, -1)], leaf);
+  const path = slotPath([...configPath, panelFolder, ...viewPath.slice(0, -1)], leaf);
   if (typeof field.component !== 'function') {
     return (
       <WorkbenchSlot path={path}>
@@ -401,6 +436,7 @@ function FieldOutlet({
 
   const renderedField = field.component({
     configFolder,
+    configPath,
     dataPath,
     defaultValue: descriptorDefault,
     field,
@@ -425,12 +461,18 @@ function FieldOutlet({
         />
       );
     },
+    renderSlot(children, slot = path) {
+      return <WorkbenchSlot path={slot}>{children}</WorkbenchSlot>;
+    },
     slotPath,
   });
+  const fieldNode = field.layout === 'block'
+    ? renderedField
+    : <WorkbenchSlot path={path}>{renderedField}</WorkbenchSlot>;
 
   return (
     <OverlayCanvasSourceProvider source={fieldRegistration.source}>
-      {renderedField}
+      {fieldNode}
     </OverlayCanvasSourceProvider>
   );
 }
@@ -458,14 +500,19 @@ function FieldContributions() {
 function PreviewSlots({
   onLoad,
   onUnload,
+  overlayPath,
+  previewPath,
   src,
 }: {
   onLoad: (w: Window) => void;
   onUnload: (w: Window) => void;
+  overlayPath: SlotPath;
+  previewPath: SlotPath;
   src: string;
 }) {
   const [frame, setFrame] = useState<HTMLIFrameElement | null>(null);
   const [previewWindow, setPreviewWindow] = useState<Window | null>(null);
+  const [previewViewport, setPreviewViewport] = useState<PreviewViewport | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -481,6 +528,7 @@ function PreviewSlots({
       unloaded = true;
       setLoading(true);
       setPreviewWindow(null);
+      setPreviewViewport(null);
       onUnload(currentWindow);
     };
     const detachWindowListeners = () => {
@@ -513,48 +561,65 @@ function PreviewSlots({
     };
   }, [frame, onLoad, onUnload]);
 
+  useEffect(() => {
+    if (!previewWindow) return undefined;
+    return receivePreviewViewport(previewWindow, setPreviewViewport);
+  }, [previewWindow]);
+
   return (
     <>
-      <WorkbenchSlot path={previewLayerPath('Preview Frame', PREVIEW_FRAME, 0)}>
-        <iframe
-          ref={setFrame}
-          className={styles.iframe}
-          data-editor-slot-id={PANEL_PREVIEW}
-          src={src}
-          tabIndex={-1}
-          title="Preview"
-        />
+      <WorkbenchSlot path={previewPath}>
+        <div className={styles.previewFrameSlot}>
+          <iframe
+            ref={setFrame}
+            className={styles.iframe}
+            src={src}
+            tabIndex={-1}
+            title="Preview"
+          />
+          {loading && (
+            <div className={styles.previewLoading} role="status" aria-label="Loading preview">
+              <Loader2 aria-hidden className={styles.spinner} size={22} />
+            </div>
+          )}
+        </div>
       </WorkbenchSlot>
-      <WorkbenchSlot path={previewLayerPath('Overlay Canvas', PREVIEW_OVERLAY, 10)}>
-        <OverlayCanvasLayer target={previewWindow} />
+      <WorkbenchSlot path={overlayPath}>
+        <OverlayCanvasLayer target={previewWindow} viewport={previewViewport} />
       </WorkbenchSlot>
-      {loading && (
-        <WorkbenchSlot path={previewLayerPath('Preview Loading', PREVIEW_LOADING, 20, false)}>
-          <div className={styles.previewLoading} role="status" aria-label="Loading preview">
-            <Loader2 aria-hidden className={styles.spinner} size={22} />
-          </div>
-        </WorkbenchSlot>
-      )}
     </>
   );
 }
 
-function OverlayCanvasLayer({ target }: { target: Window | null }) {
+function OverlayCanvasLayer({ target, viewport }: { target: Window | null; viewport: PreviewViewport | null }) {
   const entries = useOverlayCanvasEntries();
+  const viewportStyle = useMemo<CSSProperties>(() => {
+    if (!viewport || viewport.canvasRect.width <= 0 || viewport.canvasRect.height <= 0) return { inset: 0 };
+    return {
+      left: viewport.canvasRect.left,
+      top: viewport.canvasRect.top,
+      width: viewport.canvasRect.width,
+      height: viewport.canvasRect.height,
+    };
+  }, [viewport]);
 
   return (
-    <Canvas
-      camera={{ position: [0, 0, 5], fov: 45 }}
-      className={styles.previewCanvas}
-      events={noEvents}
-      gl={{ alpha: true, antialias: true }}
-      onCreated={({ gl }) => gl.setClearColor(0x000000, 0)}
-    >
-      <PointerEvents />
-      <OrbitHandles />
-      <EditorCameraPublisher target={target} />
-      <OverlayCanvasContent entries={entries} />
-    </Canvas>
+    <div className={styles.previewCanvasLayer}>
+      <div className={styles.previewCanvasViewport} style={viewportStyle}>
+        <Canvas
+          camera={{ position: [0, 0, 5], fov: 45 }}
+          className={styles.previewCanvas}
+          events={noEvents}
+          gl={{ alpha: true, antialias: true }}
+          onCreated={({ gl }) => gl.setClearColor(0x000000, 0)}
+        >
+          <PointerEvents />
+          <OrbitHandles />
+          <EditorCameraPublisher target={target} />
+          <OverlayCanvasContent entries={entries} />
+        </Canvas>
+      </div>
+    </div>
   );
 }
 
@@ -567,8 +632,12 @@ function EditorCameraPublisher({ target }: { target: Window | null }) {
     publisher.current = null;
     if (!target) return;
     publisher.current = receiveEditorCamera(target, () => {
+      if ('updateProjectionMatrix' in camera && typeof camera.updateProjectionMatrix === 'function') camera.updateProjectionMatrix();
       camera.updateMatrixWorld();
-      return camera.matrixWorld.elements;
+      return {
+        matrixWorld: camera.matrixWorld.elements,
+        projectionMatrix: camera.projectionMatrix.elements,
+      };
     });
     return () => {
       publisher.current?.dispose();
@@ -662,7 +731,8 @@ async function addSerializedField(fieldRegistration: FieldRegistration, source: 
   });
 }
 
-function createPluginApi(source: ContributionSource): EditorPluginApi {
+function createPluginApi(source: ContributionSource, path: EditorFolderPath | undefined): EditorPluginApi {
+  const configuredPath = path ? configuredFolderPath(path) : undefined;
   return {
     addField(opts) {
       mountedFieldStore.upsert({
@@ -670,6 +740,7 @@ function createPluginApi(source: ContributionSource): EditorPluginApi {
         title: opts.title,
         actions: opts.actions,
         mount: opts.mount,
+        path: configuredPath,
         source,
         order: opts.id === 'editor:chat:loading' ? -1 : undefined,
       });
@@ -694,6 +765,9 @@ function createPluginApi(source: ContributionSource): EditorPluginApi {
 function EditorShell() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const config = useMemo(() => editorConfig, []);
+  const workbenchRoot = useMemo(() => rootSegment(config.previewPath[0]), [config.previewPath]);
+  const previewPath = useMemo(() => configuredSlotPath(config.previewPath), [config.previewPath]);
+  const overlayPath = useMemo(() => configuredSlotPath(config.overlayPath), [config.overlayPath]);
 
   useKeybindings();
 
@@ -757,7 +831,7 @@ function EditorShell() {
       const source = {};
       pluginSources.push(source);
       try {
-        const cleanup = pluginModule.module.activate?.(createPluginApi(source));
+        const cleanup = pluginModule.module.activate?.(createPluginApi(source, pluginModule.path));
         if (alive && typeof cleanup === 'function') unsubs.push(cleanup);
       } catch (err) {
         console.error(`[editor] Failed to activate plugin "${pluginModule.name}".`, err);
@@ -774,7 +848,13 @@ function EditorShell() {
   return (
     <div className={styles.shell}>
       <WorkbenchEditor root={workbenchRoot}>
-        <PreviewSlots src={config.previewUrl} onLoad={handleIframeLoad} onUnload={handleIframeUnload} />
+        <PreviewSlots
+          src={config.previewUrl}
+          previewPath={previewPath}
+          overlayPath={overlayPath}
+          onLoad={handleIframeLoad}
+          onUnload={handleIframeUnload}
+        />
         <FieldContributions />
         <RuntimeMountedFields />
       </WorkbenchEditor>

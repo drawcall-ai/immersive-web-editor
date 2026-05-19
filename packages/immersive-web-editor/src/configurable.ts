@@ -33,6 +33,7 @@ export interface EditorFieldComponentProps {
   path: SlotPath;
   field: FieldDescriptor;
   configFolder: FolderSegment;
+  configPath: readonly FolderSegment[];
   dataPath: readonly (string | number)[];
   panelFolder: FolderSegment;
   viewPath: readonly (string | number | FolderSegment)[];
@@ -45,6 +46,7 @@ export interface EditorFieldComponentProps {
     value: JsonValue;
     viewPath: readonly (string | number | FolderSegment)[];
   }): ReactNode;
+  renderSlot(children: ReactNode, path?: SlotPath): ReactNode;
   folder(
     title: string | number,
     prefix: string,
@@ -55,7 +57,7 @@ export interface EditorFieldComponentProps {
   fieldSegment(
     title: string | number,
     id: string,
-    options?: Pick<FieldSegment, 'fill' | 'hidden' | 'icon' | 'interactive' | 'order' | 'size' | 'unstyled'>,
+    options?: Partial<Pick<FieldSegment, 'fill' | 'hidden' | 'icon' | 'interactive' | 'order' | 'size' | 'unstyled'>>,
   ): FieldSegment;
   slotPath(parts: readonly (string | number | FolderSegment)[], leaf: FieldSegment): SlotPath;
   defaultValue(field: FieldDescriptor): JsonValue;
@@ -64,7 +66,7 @@ export interface EditorFieldComponentProps {
 export type EditorFieldComponent = (props: EditorFieldComponentProps) => ReactNode;
 
 export interface FieldDescriptor {
-  component: EditorFieldComponent | EditorComponentRef;
+  component: EditorComponentRef;
   props?: unknown;
   defaultValue?: JsonValue;
   description?: string;
@@ -97,7 +99,7 @@ export interface FieldOptions<T extends JsonValue = JsonValue> {
 
 export interface DefineFieldOptions<T extends JsonValue> extends FieldOptions<T> {
   defaultValue: T | (() => T);
-  component: EditorFieldComponent | EditorComponentRef;
+  component: EditorComponentRef;
   props?: unknown;
 }
 
@@ -135,6 +137,10 @@ export function defineField<T extends JsonValue>(options: DefineFieldOptions<T>)
     },
     defaultValue: getDefault,
   };
+}
+
+export function editorComponent(module: string, exportName = 'default'): EditorComponentRef {
+  return { module, exportName };
 }
 
 function isField(value: unknown): value is Field {
@@ -198,9 +204,7 @@ function sendToEditor(message: PreviewToEditorMessage): void {
 function registerValue<T extends JsonValue>(meta: ConfigMeta, value: T, field: Field<T>): void {
   const component = field.descriptor.component;
   if (!isEditorComponentRef(component)) {
-    console.warn(
-      `[editor] "${meta.panel}.${meta.path.join('.')}" has an inline field component that was not extracted. Add "use editor" as the first statement in the component body.`,
-    );
+    console.warn(`[editor] "${meta.panel}.${meta.path.join('.')}" field component must be an editorComponent(...) reference.`);
     return;
   }
   if ('props' in field.descriptor && !isJsonValue(field.descriptor.props)) {

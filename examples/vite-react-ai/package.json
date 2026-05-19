@@ -16,7 +16,6 @@
   },
   "devDependencies": {
     "@immersive-web-editor/ai": "workspace:*",
-    "@immersive-web-editor/ui": "workspace:*",
     "immersive-web-editor": "workspace:*",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

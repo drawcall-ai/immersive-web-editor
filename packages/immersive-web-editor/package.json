@@ -7,22 +7,8 @@
     "url": "git+https://github.com/drawcall-ai/immersive-web-editor.git",
     "directory": "packages/immersive-web-editor"
   },
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
-  "exports": {
-    ".": {
-      "browser": "./src/client-public.ts",
-      "types": "./src/index.ts",
-      "import": "./src/index.ts"
-    },
-    "./editor-shell": {
-      "import": "./src/client/editor-shell.tsx"
-    },
-    "./editor-components": {
-      "types": "./src/editor-components.ts",
-      "import": "./src/editor-components.ts"
-    }
-  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "files": [
     "src",
     "dist"
@@ -36,33 +22,16 @@
   "publishConfig": {
     "access": "public",
     "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "exports": {
-      ".": {
-        "browser": "./dist/client-public.js",
-        "types": "./dist/index.d.ts",
-        "import": "./dist/index.js"
-      },
-      "./editor-shell": {
-        "import": "./dist/client/editor-shell.js"
-      },
-      "./editor-components": {
-        "types": "./dist/editor-components.d.ts",
-        "import": "./dist/editor-components.js"
-      }
-    }
+    "types": "./dist/index.d.ts"
   },
   "peerDependencies": {
-    "react": "^18.0.0 || ^19.0.0",
-    "react-dom": "^18.0.0 || ^19.0.0",
     "vite": "^7.0.0 || ^8.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "esbuild": "^0.27.3",
     "typescript": "^5.6.0",
     "vite": "^8.0.0"
   },
@@ -76,9 +45,10 @@
     "@react-three/handle": "^6.6.29",
     "@react-three/xr": "^6.6.29",
     "cmdk": "^1.1.1",
-    "esbuild": "^0.27.3",
     "lucide-react": "^0.468.0",
     "picocolors": "^1.1.1",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0",
     "three": "^0.184.0"
   }
 }

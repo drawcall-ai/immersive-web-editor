@@ -1,5 +1,6 @@
 import {
   defineField,
+  editorComponent,
   type EditorComponentRef,
   type Field,
   type FieldOptions,
@@ -64,8 +65,8 @@ export interface OptionalFieldOptions<T extends FieldTemplate> extends FieldOpti
 
 const DEFAULT_TRANSFORM_3D: Transform3D = { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] };
 
-function component(exportName: string): EditorComponentRef {
-  return { module: DEFAULT_SCHEMA_COMPONENT_MODULE, exportName };
+function builtInFieldComponent(exportName: string): EditorComponentRef {
+  return editorComponent(DEFAULT_SCHEMA_COMPONENT_MODULE, exportName);
 }
 
 function isField(value: unknown): value is Field {
@@ -81,7 +82,7 @@ export function string(options: StringFieldOptions = {}): Field<string> {
   return defineField({
     ...options,
     defaultValue: options.default ?? '',
-    component: component('StringFieldComponent'),
+    component: builtInFieldComponent('StringFieldComponent'),
     props: {
       multiline: options.multiline,
       placeholder: options.placeholder,
@@ -93,7 +94,7 @@ export function number(options: NumberFieldOptions = {}): Field<number> {
   return defineField({
     ...options,
     defaultValue: options.default ?? 0,
-    component: component('NumberFieldComponent'),
+    component: builtInFieldComponent('NumberFieldComponent'),
     props: {
       min: options.min,
       max: options.max,
@@ -106,7 +107,7 @@ export function boolean(options: BooleanFieldOptions = {}): Field<boolean> {
   return defineField({
     ...options,
     defaultValue: options.default ?? false,
-    component: component('BooleanFieldComponent'),
+    component: builtInFieldComponent('BooleanFieldComponent'),
     props: {},
   });
 }
@@ -115,7 +116,7 @@ export function color(options: ColorFieldOptions = {}): Field<string> {
   return defineField({
     ...options,
     defaultValue: options.default ?? '#ffffff',
-    component: component('ColorFieldComponent'),
+    component: builtInFieldComponent('ColorFieldComponent'),
     props: { alpha: options.alpha },
   });
 }
@@ -124,7 +125,7 @@ export function fileUrl(options: FileUrlFieldOptions = {}): Field<string> {
   return defineField({
     ...options,
     defaultValue: options.default ?? '',
-    component: component('FileUrlFieldComponent'),
+    component: builtInFieldComponent('FileUrlFieldComponent'),
     props: {
       accept: options.accept,
     },
@@ -135,7 +136,7 @@ export function vec2(options: VectorFieldOptions<Vector2> = {}): Field<Vector2> 
   return defineField({
     ...options,
     defaultValue: options.default ?? [0, 0],
-    component: component('Vector2FieldComponent'),
+    component: builtInFieldComponent('Vector2FieldComponent'),
     props: {
       size: 2,
       min: options.min,
@@ -149,7 +150,7 @@ export function vec3(options: VectorFieldOptions<Vector3> = {}): Field<Vector3> 
   return defineField({
     ...options,
     defaultValue: options.default ?? [0, 0, 0],
-    component: component('Vector3FieldComponent'),
+    component: builtInFieldComponent('Vector3FieldComponent'),
     props: {
       size: 3,
       min: options.min,
@@ -175,7 +176,7 @@ function vector3WithHandle(
   return defineField({
     ...options,
     defaultValue: options.default ?? defaultValue,
-    component: component('Vector3WithHandleFieldComponent'),
+    component: builtInFieldComponent('Vector3WithHandleFieldComponent'),
     props: {
       size: 3,
       min: options.min,
@@ -193,7 +194,7 @@ export function transform3D(
     ...options,
     layout: options.layout ?? 'block',
     defaultValue: options.default ?? DEFAULT_TRANSFORM_3D,
-    component: component('Transform3DFieldComponent'),
+    component: builtInFieldComponent('Transform3DFieldComponent'),
     props: {},
   });
 }
@@ -212,7 +213,7 @@ export function object<T extends { readonly [key: string]: FieldTemplate }>(
     defaultValue: () => Object.fromEntries(
       Object.entries(fields).map(([key, field]) => [key, (field as Field).defaultValue()]),
     ) as FieldValue<T>,
-    component: component('ObjectFieldComponent'),
+    component: builtInFieldComponent('ObjectFieldComponent'),
     props: {
       shape: Object.fromEntries(
         Object.entries(fields).map(([key, field]) => [key, (field as Field).descriptor]),
@@ -228,7 +229,7 @@ export function array<T extends FieldTemplate>(options: ArrayFieldOptions<T>): F
     ...options,
     layout: options.layout ?? 'block',
     defaultValue: () => [],
-    component: component('ArrayFieldComponent'),
+    component: builtInFieldComponent('ArrayFieldComponent'),
     props: {
       item: itemField.descriptor,
       itemLabel: options.itemLabel,
@@ -247,7 +248,7 @@ export function optional<T extends FieldTemplate>(
     ...options,
     layout: options.layout ?? 'block',
     defaultValue: () => null,
-    component: component('OptionalFieldComponent'),
+    component: builtInFieldComponent('OptionalFieldComponent'),
     props: { item: itemField.descriptor },
   });
 }
@@ -257,7 +258,7 @@ export function json(options: FieldOptions<JsonValue> = {}): Field<JsonValue> {
     ...options,
     layout: options.layout ?? 'block',
     defaultValue: options.default ?? null,
-    component: component('JsonFieldComponent'),
+    component: builtInFieldComponent('JsonFieldComponent'),
     props: {},
   });
 }
