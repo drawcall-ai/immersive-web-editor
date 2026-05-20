@@ -4,13 +4,8 @@
 // immersive-web-editor: preview, contributed plugins, and config fields are all
 // rendered as Slot leaves.
 
-import { createElement, isValidElement, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties, type FormEvent, type ReactNode } from 'react';
+import { createElement, isValidElement, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { createAuthClient } from 'better-auth/react';
-import { createORPCClient } from '@orpc/client';
-import { RPCLink } from '@orpc/client/fetch';
-import { createTanstackQueryUtils } from '@orpc/tanstack-query';
-import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Editor as WorkbenchEditor,
   Slot as WorkbenchSlot,
@@ -24,17 +19,12 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitHandles } from '@react-three/handle';
 import { PointerEvents, noEvents } from '@react-three/xr';
 import Bot from 'lucide-react/dist/esm/icons/bot.js';
-import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down.js';
 import FileText from 'lucide-react/dist/esm/icons/file-text.js';
 import FolderIcon from 'lucide-react/dist/esm/icons/folder.js';
-import LogOut from 'lucide-react/dist/esm/icons/log-out.js';
 import Loader2 from 'lucide-react/dist/esm/icons/loader-2.js';
 import MonitorPlay from 'lucide-react/dist/esm/icons/monitor-play.js';
-import Plus from 'lucide-react/dist/esm/icons/plus.js';
-import Shield from 'lucide-react/dist/esm/icons/shield.js';
 import SlidersHorizontal from 'lucide-react/dist/esm/icons/sliders-horizontal.js';
 import Type from 'lucide-react/dist/esm/icons/type.js';
-import UserRound from 'lucide-react/dist/esm/icons/user-round.js';
 import * as commands from './commands';
 import { useKeybindings } from './commands';
 import {
@@ -414,49 +404,6 @@ const editorConfig: EditorConfig = {
   pluginCommands: configuredPluginCommands,
 };
 
-const PROJECT_COOKIE = 'dc_project_id';
-const hostQueryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 10_000,
-      retry: 1,
-    },
-  },
-});
-const authClient = createAuthClient({
-  baseURL: window.location.origin,
-  basePath: '/api/auth',
-});
-const rpcClient = createORPCClient<any>(new RPCLink({
-  url: `${window.location.origin}/rpc`,
-  fetch: (request, init) => fetch(request, { ...init, credentials: 'include' }),
-}));
-const orpc = createTanstackQueryUtils(rpcClient) as any;
-
-type HostProject = {
-  id: string;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-  previewOrigin: string;
-};
-
-function readSelectedProjectId(): string | null {
-  const found = document.cookie
-    .split('; ')
-    .find((entry) => entry.startsWith(`${PROJECT_COOKIE}=`));
-  return found ? decodeURIComponent(found.slice(PROJECT_COOKIE.length + 1)) : null;
-}
-
-function writeSelectedProjectId(projectId: string): void {
-  document.cookie = `${PROJECT_COOKIE}=${encodeURIComponent(projectId)}; Path=/; SameSite=Lax; Max-Age=31536000`;
-}
-
-function initials(name: string | null | undefined, email: string | null | undefined): string {
-  const source = (name || email || 'User').trim();
-  return source.slice(0, 1).toUpperCase();
-}
-
 function FieldOutlet({
   fieldRegistration,
   dataPath,
@@ -815,7 +762,7 @@ function createPluginApi(source: ContributionSource, path: EditorFolderPath | un
   };
 }
 
-function WorkbenchShell({ previewSrc }: { previewSrc: string }) {
+function EditorShell() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const config = useMemo(() => editorConfig, []);
   const workbenchRoot = useMemo(() => rootSegment(config.previewPath[0]), [config.previewPath]);
@@ -902,7 +849,7 @@ function WorkbenchShell({ previewSrc }: { previewSrc: string }) {
     <div className={styles.shell}>
       <WorkbenchEditor root={workbenchRoot}>
         <PreviewSlots
-          src={previewSrc}
+          src={config.previewUrl}
           previewPath={previewPath}
           overlayPath={overlayPath}
           onLoad={handleIframeLoad}
@@ -912,236 +859,6 @@ function WorkbenchShell({ previewSrc }: { previewSrc: string }) {
         <RuntimeMountedFields />
       </WorkbenchEditor>
       <Palette open={paletteOpen} onOpenChange={setPaletteOpen} />
-    </div>
-  );
-}
-
-function HostShell() {
-  return (
-    <QueryClientProvider client={hostQueryClient}>
-      <HostSessionGate />
-    </QueryClientProvider>
-  );
-}
-
-function HostSessionGate() {
-  const sessionQuery = authClient.useSession();
-  if (sessionQuery.isPending) {
-    return (
-      <div className={styles.authShell}>
-        <Loader2 className={styles.spinner} aria-hidden />
-      </div>
-    );
-  }
-  if (!sessionQuery.data?.user) return <AuthScreen />;
-  return <ProjectHost user={sessionQuery.data.user} session={sessionQuery.data.session} />;
-}
-
-function AuthScreen() {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-
-  const submit = useCallback(async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setError(null);
-    setPending(true);
-    try {
-      const result = mode === 'login'
-        ? await authClient.signIn.email({ email, password })
-        : await authClient.signUp.email({ email, password, name: name.trim() || email.split('@')[0] || 'User' });
-      if (result.error) {
-        setError(result.error.message || 'Authentication failed.');
-        return;
-      }
-      window.location.reload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Authentication failed.');
-    } finally {
-      setPending(false);
-    }
-  }, [email, mode, name, password]);
-
-  return (
-    <div className={styles.authShell}>
-      <div className={styles.authPanel}>
-        <div className={styles.authHeading}>
-          <h1>{mode === 'login' ? 'Sign in' : 'Create account'}</h1>
-          <p>{mode === 'login' ? 'Open your hosted editor projects.' : 'Create your Drawcall editor account.'}</p>
-        </div>
-        <form className={styles.authForm} onSubmit={submit}>
-          {mode === 'register' ? (
-            <label className={styles.authField}>
-              Name
-              <input className={styles.authInput} value={name} onChange={(event) => setName(event.currentTarget.value)} autoComplete="name" />
-            </label>
-          ) : null}
-          <label className={styles.authField}>
-            Email
-            <input className={styles.authInput} value={email} onChange={(event) => setEmail(event.currentTarget.value)} autoComplete="email" type="email" required />
-          </label>
-          <label className={styles.authField}>
-            Password
-            <input className={styles.authInput} value={password} onChange={(event) => setPassword(event.currentTarget.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} type="password" minLength={8} required />
-          </label>
-          {error ? <div className={styles.authError}>{error}</div> : null}
-          <button className={styles.hostSidebarAction} disabled={pending} type="submit">
-            {pending ? <Loader2 className={styles.spinner} aria-hidden /> : <UserRound aria-hidden />}
-            {mode === 'login' ? 'Sign in' : 'Register'}
-          </button>
-        </form>
-        <button className={styles.authSwitch} type="button" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
-          {mode === 'login' ? 'Need an account?' : 'Have an account?'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function ProjectHost({
-  user,
-  session,
-}: {
-  user: { id: string; name?: string | null; email?: string | null; image?: string | null };
-  session: { id: string; expiresAt?: Date | string };
-}) {
-  const queryClient = useQueryClient();
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(() => readSelectedProjectId());
-  const [view, setView] = useState<'editor' | 'account'>('editor');
-  const projectsQuery = useQuery(orpc.projects.list.queryOptions());
-  const projects = (projectsQuery.data ?? []) as HostProject[];
-  const createProject = useMutation<HostProject, Error, { name: string }>({
-    mutationFn: (input) => rpcClient.projects.create(input) as Promise<HostProject>,
-    onSuccess(project: HostProject) {
-      writeSelectedProjectId(project.id);
-      setActiveProjectId(project.id);
-      setView('editor');
-      void queryClient.invalidateQueries({ queryKey: orpc.projects.list.key() });
-    },
-  });
-  const activeProject = projects.find((project) => project.id === activeProjectId) ?? projects[0] ?? null;
-
-  useEffect(() => {
-    if (!activeProject) return;
-    if (activeProject.id === activeProjectId) return;
-    writeSelectedProjectId(activeProject.id);
-    setActiveProjectId(activeProject.id);
-  }, [activeProject, activeProjectId]);
-
-  const selectProject = useCallback((project: HostProject) => {
-    writeSelectedProjectId(project.id);
-    setActiveProjectId(project.id);
-    setView('editor');
-  }, []);
-
-  const handleCreateProject = useCallback(() => {
-    const index = projects.length + 1;
-    createProject.mutate({ name: `Project ${index}` });
-  }, [createProject, projects.length]);
-
-  return (
-    <div className={styles.hostLayout}>
-      <aside className={styles.hostSidebar}>
-        <div className={styles.hostBrand}>
-          <span className={styles.hostBrandMark}>D</span>
-          <span>Drawcall Editor</span>
-        </div>
-        <div className={styles.hostSidebarHeader}>
-          <div className={styles.hostSidebarLabel}>Projects</div>
-          <button className={styles.hostSidebarAction} disabled={createProject.isPending} type="button" onClick={handleCreateProject}>
-            {createProject.isPending ? <Loader2 className={styles.spinner} aria-hidden /> : <Plus aria-hidden />}
-            Create project
-          </button>
-        </div>
-        <div className={styles.hostProjects}>
-          {projectsQuery.isLoading ? (
-            <button className={styles.hostProjectButton} type="button" disabled>
-              <Loader2 className={styles.spinner} aria-hidden />
-              <span className={styles.hostProjectName}>Loading</span>
-            </button>
-          ) : projects.map((project) => (
-            <button
-              className={styles.hostProjectButton}
-              data-active={project.id === activeProject?.id ? 'true' : 'false'}
-              key={project.id}
-              type="button"
-              onClick={() => selectProject(project)}
-            >
-              <FolderIcon aria-hidden />
-              <span className={styles.hostProjectName}>{project.name}</span>
-            </button>
-          ))}
-        </div>
-        <button className={styles.hostUserButton} data-active={view === 'account' ? 'true' : 'false'} type="button" onClick={() => setView(view === 'account' ? 'editor' : 'account')}>
-          <span className={styles.hostAvatar}>{initials(user.name, user.email)}</span>
-          <span className={styles.hostUserText}>
-            <span className={styles.hostUserName}>{user.name || 'Account'}</span>
-            <span className={styles.hostUserEmail}>{user.email}</span>
-          </span>
-          <ChevronDown aria-hidden />
-        </button>
-      </aside>
-      <main className={styles.hostMain}>
-        {view === 'account' ? (
-          <AccountPage user={user} session={session} />
-        ) : activeProject ? (
-          <WorkbenchShell key={activeProject.id} previewSrc={`${editorConfig.previewUrl}?projectId=${encodeURIComponent(activeProject.id)}`} />
-        ) : (
-          <EmptyProjects onCreate={handleCreateProject} pending={createProject.isPending} />
-        )}
-      </main>
-    </div>
-  );
-}
-
-function EmptyProjects({ onCreate, pending }: { onCreate: () => void; pending: boolean }) {
-  return (
-    <div className={styles.hostEmptyState}>
-      <div className={styles.hostEmptyPanel}>
-        <h1>Create your first project</h1>
-        <p>Projects isolate the editor preview, workspace files, and AI sessions.</p>
-        <button className={styles.hostSidebarAction} disabled={pending} type="button" onClick={onCreate}>
-          {pending ? <Loader2 className={styles.spinner} aria-hidden /> : <Plus aria-hidden />}
-          Create project
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function AccountPage({
-  user,
-  session,
-}: {
-  user: { id: string; name?: string | null; email?: string | null };
-  session: { id: string; expiresAt?: Date | string };
-}) {
-  const signOut = useCallback(async () => {
-    await authClient.signOut();
-    window.location.reload();
-  }, []);
-  return (
-    <div className={styles.accountPage}>
-      <div className={styles.accountPanel}>
-        <h1>Account</h1>
-        <div className={styles.accountRows}>
-          <div className={styles.accountRow}><span>Name</span><span>{user.name || 'User'}</span></div>
-          <div className={styles.accountRow}><span>Email</span><span>{user.email}</span></div>
-          <div className={styles.accountRow}><span>User ID</span><span>{user.id}</span></div>
-          <div className={styles.accountRow}><span>Session</span><span>{session.id}</span></div>
-        </div>
-        <button className={styles.hostSidebarAction} type="button" onClick={signOut}>
-          <LogOut aria-hidden />
-          Sign out
-        </button>
-        <button className={styles.hostSidebarAction} type="button" disabled>
-          <Shield aria-hidden />
-          Security settings
-        </button>
-      </div>
     </div>
   );
 }
@@ -1162,4 +879,4 @@ root.style.width = '100%';
 root.style.height = '100%';
 root.style.overflow = 'hidden';
 document.body.appendChild(root);
-createRoot(root).render(<HostShell />);
+createRoot(root).render(<EditorShell />);
