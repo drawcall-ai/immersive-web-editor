@@ -59,6 +59,7 @@ function isBareModuleId(value: string): boolean {
 
 interface ConfigurableRecord {
   id: string;
+  modulePath: string;
   panel: string;
   path: string[];
   value: unknown;
@@ -509,6 +510,13 @@ function configurableId(relativeFile: string, line: number, column: number): str
   return `editor:${relativeFile}:${line}:${column}`;
 }
 
+function viteModulePath(file: string, root: string): string {
+  const relativeFile = normalizePath(relative(root, file));
+  return relativeFile && !relativeFile.startsWith('../') && relativeFile !== '..'
+    ? `/${relativeFile}`
+    : fsModulePath(file);
+}
+
 function collectConfigurables(
   code: string,
   file: string,
@@ -519,6 +527,7 @@ function collectConfigurables(
   if (calls.length === 0) return null;
 
   const relativeFile = normalizePath(relative(root, file));
+  const modulePath = viteModulePath(file, root);
   const records: ConfigurableRecord[] = [];
   let transformed = code;
 
@@ -527,6 +536,7 @@ function collectConfigurables(
     const id = configurableId(relativeFile, line, column);
     records.unshift({
       id,
+      modulePath,
       panel: call.panel,
       path: call.path,
       value: call.value,
@@ -538,7 +548,7 @@ function collectConfigurables(
       end: call.valueEnd,
       source: code.slice(call.valueStart, call.valueEnd),
     });
-    transformed = `${transformed.slice(0, call.openParen + 1)}${JSON.stringify({ id, panel: call.panel, path: call.path })}, ${transformed.slice(call.openParen + 1)}`;
+    transformed = `${transformed.slice(0, call.openParen + 1)}${JSON.stringify({ id, modulePath, panel: call.panel, path: call.path })}, ${transformed.slice(call.openParen + 1)}`;
   }
 
   return { code: transformed, records };
@@ -558,6 +568,7 @@ function editorApiError(message: string): EditorApiErrorResponse {
 function publicConfigurable(record: ConfigurableRecord): object {
   return {
     id: record.id,
+    modulePath: record.modulePath,
     panel: record.panel,
     path: record.path,
     value: record.value,

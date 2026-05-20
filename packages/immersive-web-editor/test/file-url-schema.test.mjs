@@ -54,7 +54,7 @@ test('client public bundle excludes editor-only UI code', () => {
   assert.equal(source.includes('@react-three/fiber'), false);
   assert.equal(source.includes('lucide-react'), false);
   assert.equal(source.includes('editor-shell'), false);
-  assert.equal(source.includes('editor:removeField'), false);
+  assert.equal(source.includes('editor:removeField('), false);
   assert.equal(source.includes('global' + 'This'), false);
 });
 

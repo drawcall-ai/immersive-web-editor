@@ -18,7 +18,7 @@ export {
 } from './default-schemas';
 import type { ReactNode } from 'react';
 import type { FieldSegment, FolderSegment, SlotPath } from '@immersive-web-editor/ui';
-import { addFieldMessage, isEditorComponentRef, isJsonValue, type EditorComponentRef, type JsonValue, type PreviewToEditorMessage, type SerializedFieldDescriptor } from './rpc';
+import { addFieldMessage, isEditorComponentRef, isJsonValue, removeFieldsByModulePathMessage, type EditorComponentRef, type JsonValue, type PreviewToEditorMessage, type SerializedFieldDescriptor } from './rpc';
 
 export type { EditorComponentRef, JsonValue };
 
@@ -105,8 +105,14 @@ export interface DefineFieldOptions<T extends JsonValue> extends FieldOptions<T>
 
 interface ConfigMeta {
   id: string;
+  modulePath: string;
   panel: string;
   path: string[];
+}
+
+interface ViteHotContext {
+  on(event: 'vite:beforeUpdate', cb: (payload: { updates: Array<{ type: string; path: string; acceptedPath: string }> }) => void): void;
+  on(event: 'vite:beforePrune', cb: (payload: { paths: string[] }) => void): void;
 }
 
 type ConfigInput<T> =
@@ -187,6 +193,7 @@ function isConfigMeta(value: unknown): value is ConfigMeta {
     value
       && typeof value === 'object'
       && typeof (value as ConfigMeta).id === 'string'
+      && typeof (value as ConfigMeta).modulePath === 'string'
       && typeof (value as ConfigMeta).panel === 'string'
       && Array.isArray((value as ConfigMeta).path),
   );
@@ -218,6 +225,28 @@ function registerValue<T extends JsonValue>(meta: ConfigMeta, value: T, field: F
     field: field.descriptor as SerializedFieldDescriptor,
   };
   sendToEditor(addFieldMessage(registration));
+}
+
+function viteHot(): ViteHotContext | undefined {
+  return (import.meta as ImportMeta & { hot?: ViteHotContext }).hot;
+}
+
+function changedModulePaths(payload: { updates: Array<{ type: string; path: string; acceptedPath: string }> }): string[] {
+  return [...new Set(payload.updates
+    .filter((update) => update.type === 'js-update')
+    .flatMap((update) => [update.path, update.acceptedPath])
+    .filter((path) => path.length > 0))];
+}
+
+const hot = viteHot();
+if (hot) {
+  hot.on('vite:beforeUpdate', (payload) => {
+    const modulePaths = changedModulePaths(payload);
+    if (modulePaths.length > 0) sendToEditor(removeFieldsByModulePathMessage(modulePaths));
+  });
+  hot.on('vite:beforePrune', (payload) => {
+    if (payload.paths.length > 0) sendToEditor(removeFieldsByModulePathMessage(payload.paths));
+  });
 }
 
 export function val<T extends string | number | boolean>(value: T): T;

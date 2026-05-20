@@ -22,6 +22,7 @@ export interface SerializedFieldDescriptor {
 
 export interface FieldRegistration {
   id: string;
+  modulePath: string;
   panel: string;
   path: string[];
   value: JsonValue;
@@ -33,7 +34,12 @@ export interface AddFieldMessage {
   field: FieldRegistration;
 }
 
-export type PreviewToEditorMessage = AddFieldMessage;
+export interface RemoveFieldsByModulePathMessage {
+  type: 'editor:removeFieldsByModulePath';
+  modulePaths: string[];
+}
+
+export type PreviewToEditorMessage = AddFieldMessage | RemoveFieldsByModulePathMessage;
 
 export const EDITOR_PUBLIC_FILES_PATH = '/__editor/public-files';
 export const DEFAULT_SCHEMA_COMPONENT_MODULE = 'immersive-web-editor/default-schema-components';
@@ -96,6 +102,7 @@ export function isSerializedFieldDescriptor(value: unknown): value is Serialized
 export function isFieldRegistration(value: unknown): value is FieldRegistration {
   return isObject(value)
     && typeof value.id === 'string'
+    && typeof value.modulePath === 'string'
     && typeof value.panel === 'string'
     && Array.isArray(value.path)
     && value.path.every((part) => typeof part === 'string')
@@ -107,9 +114,17 @@ export function addFieldMessage(field: FieldRegistration): AddFieldMessage {
   return { type: 'editor:addField', field };
 }
 
+export function removeFieldsByModulePathMessage(modulePaths: string[]): RemoveFieldsByModulePathMessage {
+  return { type: 'editor:removeFieldsByModulePath', modulePaths };
+}
+
 export function isPreviewToEditorMessage(value: unknown): value is PreviewToEditorMessage {
   if (!isObject(value) || typeof value.type !== 'string') return false;
   if (value.type === 'editor:addField') return isFieldRegistration(value.field);
+  if (value.type === 'editor:removeFieldsByModulePath') {
+    return Array.isArray(value.modulePaths)
+      && value.modulePaths.every((modulePath) => typeof modulePath === 'string');
+  }
   return false;
 }
 

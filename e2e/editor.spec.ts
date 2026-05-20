@@ -10,25 +10,58 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const appRoot = resolve(repoRoot, 'e2e/fixtures/vite-app');
 const appFile = resolve(appRoot, 'src/main.ts');
+const reactExampleRoot = resolve(repoRoot, 'examples/vite-react-ai');
+const reactExampleFile = resolve(reactExampleRoot, 'src/App.tsx');
 const staticEditorRoot = resolve(repoRoot, 'packages/immersive-web-editor/src/editor');
 const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 
 let originalAppSource = '';
+let originalReactExampleSource = '';
 
 test.describe.configure({ mode: 'serial' });
 
 test.beforeAll(() => {
   originalAppSource = readFileSync(appFile, 'utf8');
+  originalReactExampleSource = readFileSync(reactExampleFile, 'utf8');
 });
 
 test.afterEach(() => {
   writeFileSync(appFile, originalAppSource);
+  writeFileSync(reactExampleFile, originalReactExampleSource);
 });
 
 test('Vite serves the live editor and live app together', async ({ page }) => {
   const app = await startViteApp();
   try {
     await expectEditorCanEdit(page, `${app.origin}/editor`, `Live editor ${Date.now()}`);
+  } finally {
+    await app.stop();
+  }
+});
+
+test('live editor removes stale config fields after client HMR', async ({ page }) => {
+  const app = await startReactExample();
+  try {
+    await page.goto(`${app.origin}/editor`);
+
+    const preview = page.frameLocator('iframe[title="Preview"]');
+    await expect(preview.getByRole('heading', { name: 'Hello World' })).toBeVisible();
+
+    const oldSlot = page.locator('[data-editor-slot-path="Config/Scene/title"]');
+    const newSlot = page.locator('[data-editor-slot-path="Config/Scene/name"]');
+    await expect(oldSlot).toBeVisible();
+    await expect(newSlot).toHaveCount(0);
+
+    writeFileSync(
+      reactExampleFile,
+      originalReactExampleSource
+        .replace('title: val("Hello World")', 'name: val("Hello World")')
+        .replace('<h1>{scene.title}</h1>', '<h1>{scene.name}</h1>'),
+    );
+
+    await expect(newSlot).toBeVisible();
+    await expect(oldSlot).toHaveCount(0);
+    await expect(preview.getByRole('heading', { name: 'Hello World' })).toBeVisible();
   } finally {
     await app.stop();
   }
@@ -79,6 +112,17 @@ async function expectEditorCanEdit(page: Page, editorUrl: string, nextTitle: str
 async function startViteApp(): Promise<{ origin: string; stop(): Promise<void> }> {
   const port = await getFreePort();
   const child = spawnProcess(pnpm, ['exec', 'vite', '--config', resolve(appRoot, 'vite.config.ts'), '--host', '127.0.0.1', '--port', String(port), '--strictPort'], appRoot);
+  const origin = `http://127.0.0.1:${port}`;
+  await waitForHttp(origin, child);
+  return {
+    origin,
+    stop: () => stopProcess(child),
+  };
+}
+
+async function startReactExample(): Promise<{ origin: string; stop(): Promise<void> }> {
+  const port = await getFreePort();
+  const child = spawnProcess(pnpm, ['exec', 'vite', '--host', '127.0.0.1', '--port', String(port), '--strictPort'], reactExampleRoot);
   const origin = `http://127.0.0.1:${port}`;
   await waitForHttp(origin, child);
   return {

@@ -185,6 +185,16 @@ const fieldStore = {
     }
     if (changed) this.emit();
   },
+  removeByModulePath(source: ContributionSource, modulePaths: readonly string[]): void {
+    const changedPaths = new Set(modulePaths);
+    let changed = false;
+    for (const [id, fieldRegistration] of this.fields) {
+      if (fieldRegistration.source !== source || !changedPaths.has(fieldRegistration.modulePath)) continue;
+      this.fields.delete(id);
+      changed = true;
+    }
+    if (changed) this.emit();
+  },
   all(): RuntimeField[] {
     return [...this.fields.values()].sort((a, b) => {
       const panel = a.panel.localeCompare(b.panel, undefined, { numeric: true, sensitivity: 'base' });
@@ -788,6 +798,8 @@ function EditorShell() {
       if (!isPreviewToEditorMessage(event.data)) return;
       if (event.data.type === 'editor:addField') {
         void addSerializedField(event.data.field, event.source as Window);
+      } else if (event.data.type === 'editor:removeFieldsByModulePath') {
+        fieldStore.removeByModulePath(event.source as Window, event.data.modulePaths);
       }
     };
 
