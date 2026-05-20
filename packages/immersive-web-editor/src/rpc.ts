@@ -23,7 +23,7 @@ export interface SerializedFieldDescriptor {
 export interface FieldRegistration {
   id: string;
   modulePath: string;
-  panel: string;
+  fieldFolder: string;
   path: string[];
   value: JsonValue;
   field: SerializedFieldDescriptor;
@@ -103,7 +103,7 @@ export function isFieldRegistration(value: unknown): value is FieldRegistration 
   return isObject(value)
     && typeof value.id === 'string'
     && typeof value.modulePath === 'string'
-    && typeof value.panel === 'string'
+    && typeof value.fieldFolder === 'string'
     && Array.isArray(value.path)
     && value.path.every((part) => typeof part === 'string')
     && isJsonValue(value.value)

@@ -47,8 +47,8 @@ test('live editor removes stale config fields after client HMR', async ({ page }
     const preview = page.frameLocator('iframe[title="Preview"]');
     await expect(preview.getByRole('heading', { name: 'Hello World' })).toBeVisible();
 
-    const oldSlot = page.locator('[data-editor-slot-path="Config/Scene/title"]');
-    const newSlot = page.locator('[data-editor-slot-path="Config/Scene/name"]');
+    const oldSlot = page.locator('[data-editor-slot-path="Fields/Scene/title"]');
+    const newSlot = page.locator('[data-editor-slot-path="Fields/Scene/name"]');
     await expect(oldSlot).toBeVisible();
     await expect(newSlot).toHaveCount(0);
 
@@ -97,7 +97,7 @@ async function expectEditorCanEdit(page: Page, editorUrl: string, nextTitle: str
   const preview = page.frameLocator('iframe[title="Preview"]');
   await expect(preview.getByRole('heading', { name: 'Hello World' })).toBeVisible();
 
-  const titleSlot = page.locator('[data-editor-slot-path="Config/Scene/title"]');
+  const titleSlot = page.locator('[data-editor-slot-path="Fields/Scene/title"]');
   await expect(titleSlot).toBeVisible();
   const titleInput = titleSlot.locator('input');
   await expect(titleInput).toHaveValue('Hello World');

@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Panel, type EditorApi } from './Panel';
+import { Panel, type AiClientOptions, type EditorApi } from './Panel';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -12,7 +12,7 @@ const queryClient = new QueryClient({
   },
 });
 
-export function activate(editor: EditorApi): () => void {
+export function activateAi(editor: EditorApi, options: AiClientOptions = {}): () => void {
   const controller = document.createElement('div');
   controller.hidden = true;
   document.body.appendChild(controller);
@@ -20,7 +20,7 @@ export function activate(editor: EditorApi): () => void {
   const root = createRoot(controller);
   root.render(
     <QueryClientProvider client={queryClient}>
-      <Panel editor={editor} />
+      <Panel editor={editor} options={options} />
     </QueryClientProvider>,
   );
 
@@ -28,4 +28,8 @@ export function activate(editor: EditorApi): () => void {
     root.unmount();
     controller.remove();
   };
+}
+
+export function activate(editor: EditorApi): () => void {
+  return activateAi(editor);
 }

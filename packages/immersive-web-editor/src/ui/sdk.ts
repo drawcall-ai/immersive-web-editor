@@ -1,8 +1,8 @@
 // Shared editor transport types. This file is imported as type-only by the
-// editor shell and configurable runtime; it is not injected into app pages.
+// Editor UI and authoring runtime; it is not injected into app pages.
 
 import type { ReactNode } from 'react';
-import type { FieldSegment, FolderSegment, SlotPath } from '@immersive-web-editor/ui';
+import type { SlotSegment, FolderSegment, SlotPath } from '@immersive-web-editor/ui';
 import type { JsonValue } from '../rpc';
 
 export type { JsonValue };
@@ -24,10 +24,10 @@ export interface FieldDescriptor {
     props?: unknown;
     path: SlotPath;
     field: FieldDescriptor;
-    configFolder: FolderSegment;
-    configPath: readonly FolderSegment[];
+    fieldsFolder: FolderSegment;
+    fieldsPath: readonly FolderSegment[];
     dataPath: readonly (string | number)[];
-    panelFolder: FolderSegment;
+    fieldFolder: FolderSegment;
     viewPath: readonly (string | number | FolderSegment)[];
     setValue(value: JsonValue): void | Promise<void>;
     renderField(options: {
@@ -46,12 +46,12 @@ export interface FieldDescriptor {
       arrangement?: FolderSegment['arrangement'],
       options?: Partial<Pick<FolderSegment, 'defaultActive' | 'defaultCollapsed' | 'hideTitle' | 'icon' | 'preserveFolder' | 'preserveMountedChildren' | 'order' | 'size'>>,
     ): FolderSegment;
-    fieldSegment(
+    slotSegment(
       title: string | number,
       id: string,
-      options?: Partial<Pick<FieldSegment, 'fill' | 'hidden' | 'icon' | 'interactive' | 'order' | 'size' | 'unstyled'>>,
-    ): FieldSegment;
-    slotPath(parts: readonly (string | number | FolderSegment)[], leaf: FieldSegment): SlotPath;
+      options?: Partial<Pick<SlotSegment, 'fill' | 'hidden' | 'icon' | 'interactive' | 'order' | 'size' | 'unstyled'>>,
+    ): SlotSegment;
+    slotPath(parts: readonly (string | number | FolderSegment)[], leaf: SlotSegment): SlotPath;
     defaultValue(field: FieldDescriptor): JsonValue;
   }) => ReactNode;
   props?: unknown;

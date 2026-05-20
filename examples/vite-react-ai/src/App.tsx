@@ -65,7 +65,7 @@ export function App() {
 
   return (
     <main className="app" style={{ backgroundColor: scene.background }}>
-      <section className="workbench">
+      <section className="editor-demo">
         <div className="stage-header">
           <div>
             <p className="eyebrow">Runtime registered controls</p>

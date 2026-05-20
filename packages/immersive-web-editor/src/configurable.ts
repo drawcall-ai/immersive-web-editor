@@ -17,7 +17,7 @@ export {
   vec3,
 } from './default-schemas';
 import type { ReactNode } from 'react';
-import type { FieldSegment, FolderSegment, SlotPath } from '@immersive-web-editor/ui';
+import type { SlotSegment, FolderSegment, SlotPath } from '@immersive-web-editor/ui';
 import { addFieldMessage, isEditorComponentRef, isJsonValue, removeFieldsByModulePathMessage, type EditorComponentRef, type JsonValue, type PreviewToEditorMessage, type SerializedFieldDescriptor } from './rpc';
 
 export type { EditorComponentRef, JsonValue };
@@ -32,10 +32,10 @@ export interface EditorFieldComponentProps {
   props?: unknown;
   path: SlotPath;
   field: FieldDescriptor;
-  configFolder: FolderSegment;
-  configPath: readonly FolderSegment[];
+  fieldsFolder: FolderSegment;
+  fieldsPath: readonly FolderSegment[];
   dataPath: readonly (string | number)[];
-  panelFolder: FolderSegment;
+  fieldFolder: FolderSegment;
   viewPath: readonly (string | number | FolderSegment)[];
   setValue(value: JsonValue): void | Promise<void>;
   renderField(options: {
@@ -54,12 +54,12 @@ export interface EditorFieldComponentProps {
     arrangement?: FolderSegment['arrangement'],
     options?: Partial<Pick<FolderSegment, 'defaultActive' | 'defaultCollapsed' | 'hideTitle' | 'icon' | 'preserveFolder' | 'preserveMountedChildren' | 'order' | 'size'>>,
   ): FolderSegment;
-  fieldSegment(
+  slotSegment(
     title: string | number,
     id: string,
-    options?: Partial<Pick<FieldSegment, 'fill' | 'hidden' | 'icon' | 'interactive' | 'order' | 'size' | 'unstyled'>>,
-  ): FieldSegment;
-  slotPath(parts: readonly (string | number | FolderSegment)[], leaf: FieldSegment): SlotPath;
+    options?: Partial<Pick<SlotSegment, 'fill' | 'hidden' | 'icon' | 'interactive' | 'order' | 'size' | 'unstyled'>>,
+  ): SlotSegment;
+  slotPath(parts: readonly (string | number | FolderSegment)[], leaf: SlotSegment): SlotPath;
   defaultValue(field: FieldDescriptor): JsonValue;
 }
 
@@ -103,10 +103,10 @@ export interface DefineFieldOptions<T extends JsonValue> extends FieldOptions<T>
   props?: unknown;
 }
 
-interface ConfigMeta {
+interface AuthoredValueMeta {
   id: string;
   modulePath: string;
-  panel: string;
+  fieldFolder: string;
   path: string[];
 }
 
@@ -188,34 +188,47 @@ function inferredField(value: JsonValue): Field {
   return json({ default: value });
 }
 
-function isConfigMeta(value: unknown): value is ConfigMeta {
+function isAuthoredValueMeta(value: unknown): value is AuthoredValueMeta {
   return Boolean(
     value
       && typeof value === 'object'
-      && typeof (value as ConfigMeta).id === 'string'
-      && typeof (value as ConfigMeta).modulePath === 'string'
-      && typeof (value as ConfigMeta).panel === 'string'
-      && Array.isArray((value as ConfigMeta).path),
+      && typeof (value as AuthoredValueMeta).id === 'string'
+      && typeof (value as AuthoredValueMeta).modulePath === 'string'
+      && typeof (value as AuthoredValueMeta).fieldFolder === 'string'
+      && Array.isArray((value as AuthoredValueMeta).path),
   );
 }
 
 function sendToEditor(message: PreviewToEditorMessage): void {
   try {
     if (window.parent === window) return;
-    window.parent.postMessage(message, window.location.origin);
+    window.parent.postMessage(message, editorOrigin());
   } catch {
     // Outside a browser or cross-origin parent: silently no-op.
   }
 }
 
-function registerValue<T extends JsonValue>(meta: ConfigMeta, value: T, field: Field<T>): void {
+function editorOrigin(): string {
+  const fromQuery = new URLSearchParams(window.location.search).get('__editorOrigin');
+  if (fromQuery) return fromQuery;
+  if (document.referrer) {
+    try {
+      return new URL(document.referrer).origin;
+    } catch {
+      return window.location.origin;
+    }
+  }
+  return window.location.origin;
+}
+
+function registerValue<T extends JsonValue>(meta: AuthoredValueMeta, value: T, field: Field<T>): void {
   const component = field.descriptor.component;
   if (!isEditorComponentRef(component)) {
-    console.warn(`[editor] "${meta.panel}.${meta.path.join('.')}" field component must be an editorComponent(...) reference.`);
+    console.warn(`[editor] "${meta.fieldFolder}.${meta.path.join('.')}" field component must be an editorComponent(...) reference.`);
     return;
   }
   if ('props' in field.descriptor && !isJsonValue(field.descriptor.props)) {
-    console.warn(`[editor] "${meta.panel}.${meta.path.join('.')}" field props must be JSON-serializable.`);
+    console.warn(`[editor] "${meta.fieldFolder}.${meta.path.join('.')}" field props must be JSON-serializable.`);
     return;
   }
 
@@ -252,14 +265,14 @@ if (hot) {
 export function val<T extends string | number | boolean>(value: T): T;
 export function val<T extends JsonValue>(value: T): T;
 export function val<F extends Field<JsonValue>>(value: FieldValue<F>, field: F): FieldValue<F>;
-export function val<T extends JsonValue>(meta: ConfigMeta, value: T): T;
-export function val<F extends Field<JsonValue>>(meta: ConfigMeta, value: FieldValue<F>, field: F): FieldValue<F>;
+export function val<T extends JsonValue>(meta: AuthoredValueMeta, value: T): T;
+export function val<F extends Field<JsonValue>>(meta: AuthoredValueMeta, value: FieldValue<F>, field: F): FieldValue<F>;
 export function val(
-  metaOrValue: ConfigMeta | JsonValue,
+  metaOrValue: AuthoredValueMeta | JsonValue,
   valueOrField?: JsonValue | Field,
   maybeField?: Field,
 ): JsonValue {
-  if (isConfigMeta(metaOrValue)) {
+  if (isAuthoredValueMeta(metaOrValue)) {
     const value = valueOrField as JsonValue;
     registerValue(metaOrValue, value, isField(maybeField) ? maybeField : inferredField(value));
     return value;

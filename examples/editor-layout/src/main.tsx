@@ -94,7 +94,7 @@ function path(...segments: SlotPath): SlotPath {
 
 function App() {
   const [state, setState] = useState({
-    title: 'Config Lab',
+    title: 'Fields Lab',
     paused: false,
     heroName: 'Guard',
     heroTitle: 'Cartographer',

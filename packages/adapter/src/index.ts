@@ -16,24 +16,34 @@ export interface PreviewCanvasRect {
   width: number;
   height: number;
 }
-export interface PreviewViewport {
+export interface PreviewCanvasViewport {
   canvasRect: PreviewCanvasRect;
   devicePixelRatio: number;
 }
 export type ReceivedEditorCamera = { submit(): void; dispose(): void };
-export type PublishedPreviewViewport = { submit(): void; dispose(): void };
+export type PublishedPreviewCanvasViewport = { submit(): void; dispose(): void };
 
-export function publishEditorCamera(accept: (camera: EditorCamera) => void): () => void {
+export interface EditorOriginOptions {
+  editorOrigin?: string;
+}
+
+export interface PreviewOriginOptions {
+  previewOrigin?: string;
+}
+
+export function publishEditorCamera(accept: (camera: EditorCamera) => void, options: EditorOriginOptions = {}): () => void {
+  const targetOrigin = options.editorOrigin ?? parentEditorOrigin();
   const listener = (event: MessageEvent<unknown>) => {
-    if (event.origin !== location.origin || !isCameraMessage(event.data)) return;
+    if (event.origin !== targetOrigin || !isCameraMessage(event.data)) return;
     accept(editorCamera(event.data.matrixWorld, event.data.projectionMatrix));
   };
   window.addEventListener('message', listener);
-  window.parent?.postMessage({ source: SOURCE, type: 'editor-camera:ready' }, location.origin);
+  window.parent?.postMessage({ source: SOURCE, type: 'editor-camera:ready' }, targetOrigin);
   return () => window.removeEventListener('message', listener);
 }
 
-export function receiveEditorCamera(target: Window, camera: () => EditorCameraInput): ReceivedEditorCamera {
+export function receiveEditorCamera(target: Window, camera: () => EditorCameraInput, options: PreviewOriginOptions = {}): ReceivedEditorCamera {
+  const targetOrigin = options.previewOrigin ?? location.origin;
   const submit = () => {
     const next = camera();
     const matrixWorld = matrix(next.matrixWorld);
@@ -43,25 +53,26 @@ export function receiveEditorCamera(target: Window, camera: () => EditorCameraIn
       matrix: matrixWorld,
       matrixWorld,
       projectionMatrix: matrix(next.projectionMatrix),
-    }, location.origin);
+    }, targetOrigin);
   };
   const listener = (event: MessageEvent<unknown>) => {
-    if (event.origin === location.origin && event.source === target && isMessage(event.data, 'editor-camera:ready')) submit();
+    if (event.origin === targetOrigin && event.source === target && isMessage(event.data, 'editor-camera:ready')) submit();
   };
   window.addEventListener('message', listener);
   submit();
   return { submit, dispose: () => window.removeEventListener('message', listener) };
 }
 
-export function publishPreviewViewport(canvas: Element | (() => Element | null)): PublishedPreviewViewport {
-  const getCanvas = typeof canvas === 'function' ? canvas : () => canvas;
+export function publishPreviewCanvasViewport(previewCanvas: Element | (() => Element | null), options: EditorOriginOptions = {}): PublishedPreviewCanvasViewport {
+  const targetOrigin = options.editorOrigin ?? parentEditorOrigin();
+  const getPreviewCanvas = typeof previewCanvas === 'function' ? previewCanvas : () => previewCanvas;
   let disposed = false;
   let observed: Element | null = null;
   const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => submit());
 
   const submit = () => {
     if (disposed) return;
-    const element = getCanvas();
+    const element = getPreviewCanvas();
     if (!element) return;
     if (observer && observed !== element) {
       if (observed) observer.unobserve(observed);
@@ -71,7 +82,7 @@ export function publishPreviewViewport(canvas: Element | (() => Element | null))
     const rect = element.getBoundingClientRect();
     window.parent?.postMessage({
       source: SOURCE,
-      type: 'preview-viewport',
+      type: 'preview-canvas-viewport',
       canvasRect: {
         left: rect.left,
         top: rect.top,
@@ -79,11 +90,11 @@ export function publishPreviewViewport(canvas: Element | (() => Element | null))
         height: rect.height,
       },
       devicePixelRatio: window.devicePixelRatio || 1,
-    }, location.origin);
+    }, targetOrigin);
   };
 
   const listener = (event: MessageEvent<unknown>) => {
-    if (event.origin === location.origin && isMessage(event.data, 'preview-viewport:ready')) submit();
+    if (event.origin === targetOrigin && isMessage(event.data, 'preview-canvas-viewport:ready')) submit();
   };
 
   window.addEventListener('message', listener);
@@ -107,22 +118,36 @@ export function publishPreviewViewport(canvas: Element | (() => Element | null))
   };
 }
 
-export function receivePreviewViewport(target: Window, accept: (viewport: PreviewViewport) => void): () => void {
+export function receivePreviewCanvasViewport(target: Window, accept: (viewport: PreviewCanvasViewport) => void, options: PreviewOriginOptions = {}): () => void {
+  const targetOrigin = options.previewOrigin ?? location.origin;
   const listener = (event: MessageEvent<unknown>) => {
-    if (event.origin !== location.origin || event.source !== target || !isPreviewViewportMessage(event.data)) return;
+    if (event.origin !== targetOrigin || event.source !== target || !isPreviewCanvasViewportMessage(event.data)) return;
     accept(event.data);
   };
   window.addEventListener('message', listener);
-  target.postMessage({ source: SOURCE, type: 'preview-viewport:ready' }, location.origin);
+  target.postMessage({ source: SOURCE, type: 'preview-canvas-viewport:ready' }, targetOrigin);
   return () => window.removeEventListener('message', listener);
+}
+
+function parentEditorOrigin(): string {
+  const fromQuery = new URLSearchParams(location.search).get('__editorOrigin');
+  if (fromQuery) return fromQuery;
+  if (document.referrer) {
+    try {
+      return new URL(document.referrer).origin;
+    } catch {
+      return location.origin;
+    }
+  }
+  return location.origin;
 }
 
 function isCameraMessage(value: unknown): value is { matrixWorld: CameraMatrix; projectionMatrix: CameraMatrix } {
   return isMessage(value, 'editor-camera') && isMatrix(value.matrixWorld) && isMatrix(value.projectionMatrix);
 }
 
-function isPreviewViewportMessage(value: unknown): value is PreviewViewport {
-  return isMessage(value, 'preview-viewport')
+function isPreviewCanvasViewportMessage(value: unknown): value is PreviewCanvasViewport {
+  return isMessage(value, 'preview-canvas-viewport')
     && typeof value.devicePixelRatio === 'number'
     && Number.isFinite(value.devicePixelRatio)
     && isCanvasRect(value.canvasRect);

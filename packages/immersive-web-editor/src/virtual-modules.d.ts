@@ -1,5 +1,5 @@
 declare module 'virtual:editor/config' {
-  import type { CommandOptions } from './client/sdk';
+  import type { CommandOptions } from './ui/sdk';
   import type { EditorFolderPath, EditorSlotPath } from './plugin/options';
 
   interface EditorPluginApi {
@@ -23,7 +23,7 @@ declare module 'virtual:editor/config' {
   export const previewUrl: string | undefined;
   export const previewPath: EditorSlotPath;
   export const overlayPath: EditorSlotPath;
-  export const configPath: EditorFolderPath;
+  export const fieldsPath: EditorFolderPath;
   export const pluginModules: Array<{
     name: string;
     path?: EditorFolderPath;

@@ -7,13 +7,13 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
 const tmpDir = new URL('../.test-tmp/', import.meta.url);
-const bundledEntry = new URL('client-public.mjs', tmpDir);
+const bundledEntry = new URL('authoring-api.mjs', tmpDir);
 const bundledServerEntry = new URL('server.mjs', tmpDir);
 
 await rm(tmpDir, { recursive: true, force: true });
 await mkdir(tmpDir, { recursive: true });
 await build({
-  entryPoints: [fileURLToPath(new URL('../src/client-public.ts', import.meta.url))],
+  entryPoints: [fileURLToPath(new URL('../src/authoring-api.ts', import.meta.url))],
   bundle: true,
   format: 'esm',
   jsx: 'automatic',
@@ -45,7 +45,7 @@ test('fileUrl has no built-in no-file option', () => {
   assert.equal(source.includes('Upload a file'), true);
 });
 
-test('client public bundle excludes editor-only UI code', () => {
+test('authoring API bundle excludes editor-only UI code', () => {
   const source = readFileSync(bundledEntry, 'utf8');
 
   assert.equal(source.includes('OverlayCanvasPortal'), false);
@@ -53,7 +53,7 @@ test('client public bundle excludes editor-only UI code', () => {
   assert.equal(source.includes('@immersive-web-editor/ui'), false);
   assert.equal(source.includes('@react-three/fiber'), false);
   assert.equal(source.includes('lucide-react'), false);
-  assert.equal(source.includes('editor-shell'), false);
+  assert.equal(source.includes('ui/editor-ui'), false);
   assert.equal(source.includes('editor:removeField('), false);
   assert.equal(source.includes('global' + 'This'), false);
 });

@@ -97,7 +97,7 @@ const panelStyles = {
     '& .dc-question-actions': { display: 'flex', justifyContent: 'flex-end', gap: 6 },
     '& .dc-question-actions button, & .dc-alert button': { border: '1px solid #e4e4e7', borderRadius: 6, background: '#ffffff', padding: '5px 9px', cursor: 'pointer' },
     '& .dc-question-reject': { color: '#991b1b' },
-    '& .dc-composer-shell': { flex: '0 0 auto', borderTop: '1px solid #e4e4e7', padding: 10, background: '#ffffff' },
+    '& .dc-composer-panel': { flex: '0 0 auto', borderTop: '1px solid #e4e4e7', padding: 10, background: '#ffffff' },
     '& .dc-attachments': { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
     '& .dc-attachment': { display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: 220, border: '1px solid #e4e4e7', borderRadius: 999, padding: '3px 7px', background: '#fafafa' },
     '& .dc-composer': { border: '1px solid #e4e4e7', borderRadius: 8, background: '#ffffff', overflow: 'hidden' },
@@ -123,6 +123,11 @@ function renderMarkdown(src: string): string {
 }
 
 type AiStatus = { state: 'disabled' | 'starting' | 'ready' | 'error'; message?: string };
+export interface AiClientOptions {
+  opencodeBaseUrl?: string;
+  statusUrl?: string;
+}
+const DEFAULT_AI_CLIENT_OPTIONS: AiClientOptions = {};
 type AttachedFile = FilePartInput & { localID: string };
 type ModelChoice = { providerID: string; modelID: string; label: string; attachment: boolean };
 type ProviderListPayload = { all?: Provider[]; default?: Record<string, string>; connected?: string[] };
@@ -156,8 +161,8 @@ const queryKeys = {
   sessionData: (sessionID: string) => ['opencode', 'session', sessionID] as const,
 };
 
-function createClient(): OpencodeClient {
-  return createOpencodeClient({ baseUrl: `${window.location.origin}/__editor/oc` });
+function createClient(options: AiClientOptions): OpencodeClient {
+  return createOpencodeClient({ baseUrl: options.opencodeBaseUrl ?? `${window.location.origin}/__editor/oc` });
 }
 
 function formatTime(ts?: number): string {
@@ -278,8 +283,8 @@ function compactTitle(session: Session): string {
   return session.slug || session.id.slice(0, 8);
 }
 
-export function Panel({ editor }: { editor: EditorApi }) {
-  const client = useMemo(createClient, []);
+export function Panel({ editor, options = DEFAULT_AI_CLIENT_OPTIONS }: { editor: EditorApi; options?: AiClientOptions }) {
+  const client = useMemo(() => createClient(options), [options]);
   const queryClient = useQueryClient();
   const registeredSlotsRef = useRef(new Set<string>());
   const creatingSessionRef = useRef(false);
@@ -384,7 +389,7 @@ export function Panel({ editor }: { editor: EditorApi }) {
           const root = createRoot(container);
           root.render(
             <QueryClientProvider client={queryClient}>
-              <SessionPanel fixedSessionID={session.id} />
+              <SessionPanel fixedSessionID={session.id} options={options} />
             </QueryClientProvider>,
           );
           return () => queueMicrotask(() => root.unmount());
@@ -417,7 +422,7 @@ function ChatLoadingPanel() {
             <Loader2 className="spin" size={18} />
           </div>
         </div>
-        <div className="dc-composer-shell">
+        <div className="dc-composer-panel">
           <div className="dc-composer">
             <textarea placeholder="Describe a change..." rows={2} disabled />
             <div className="dc-composer-toolbar">
@@ -438,8 +443,8 @@ function ChatLoadingPanel() {
   );
 }
 
-function SessionPanel({ fixedSessionID }: { fixedSessionID: string }) {
-  const client = useMemo(createClient, []);
+function SessionPanel({ fixedSessionID, options }: { fixedSessionID: string; options: AiClientOptions }) {
+  const client = useMemo(() => createClient(options), [options]);
   const queryClient = useQueryClient();
   const [sessionID, setSessionID] = useState<string | undefined>(fixedSessionID);
   const [selectedModel, setSelectedModel] = useState(modelValue(DEFAULT_MODEL_PROVIDER, DEFAULT_MODEL_ID));
@@ -572,7 +577,7 @@ function SessionPanel({ fixedSessionID }: { fixedSessionID: string }) {
     let cancelled = false;
     async function refresh() {
       try {
-        const res = await fetch('/__editor/ai/status');
+        const res = await fetch(options.statusUrl ?? '/__editor/ai/status');
         const status = (await res.json()) as AiStatus;
         if (!cancelled) setAiStatus(status);
       } catch (e) {
@@ -585,7 +590,7 @@ function SessionPanel({ fixedSessionID }: { fixedSessionID: string }) {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, []);
+  }, [options.statusUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -950,7 +955,7 @@ function SessionPanel({ fixedSessionID }: { fixedSessionID: string }) {
           ))}
         </div>
 
-        <div className="dc-composer-shell">
+        <div className="dc-composer-panel">
           {attachments.length > 0 && (
             <div className="dc-attachments">
               {attachments.map((file) => (
@@ -1059,7 +1064,7 @@ function DiffPanel({ diffs, onClose }: { diffs: SnapshotFileDiff[]; onClose: () 
     <div className="dc-diff-panel">
       <div className="dc-diff-head">
         <div>
-          <strong>Workspace diff</strong>
+          <strong>Filesystem diff</strong>
           <span>{diffs.length} file{diffs.length === 1 ? '' : 's'}</span>
         </div>
         <IconButton title="Close diff" onClick={onClose}><X size={14} /></IconButton>

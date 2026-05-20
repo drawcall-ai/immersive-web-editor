@@ -4,7 +4,7 @@ import { defaultTheme } from '@immersive-web-editor/ui';
 const t = defaultTheme;
 
 export const styles = {
-  shell: css({
+  editorUi: css({
     position: 'relative',
     height: '100%',
     width: '100%',
@@ -13,8 +13,8 @@ export const styles = {
     fontFamily: t.font.sans,
     fontSize: 13,
   }),
-  configError: css({ color: '#b42318', fontSize: 12, padding: '8px 0' }),
-  configInput: css({
+  fieldError: css({ color: '#b42318', fontSize: 12, padding: '8px 0' }),
+  fieldInput: css({
     width: '100%',
     boxSizing: 'border-box',
     border: '1px solid #e4e4e7',
@@ -26,8 +26,8 @@ export const styles = {
     padding: '6px 7px',
     '&:focus': { outline: '2px solid rgba(9, 9, 11, 0.08)', borderColor: '#d4d4d8' },
   }),
-  configColor: css({ minHeight: 30, padding: 3 }),
-  configToggle: css({
+  fieldColor: css({ minHeight: 30, padding: 3 }),
+  fieldToggle: css({
     display: 'inline-flex',
     alignItems: 'center',
     gap: 7,
@@ -37,7 +37,7 @@ export const styles = {
     cursor: 'pointer',
     '& input': { margin: 0 },
   }),
-  configSelect: css({
+  fieldSelect: css({
     width: '100%',
     minWidth: 0,
     boxSizing: 'border-box',
@@ -51,10 +51,10 @@ export const styles = {
     padding: '0 28px 0 7px',
     '&:focus': { outline: '2px solid rgba(9, 9, 11, 0.08)', borderColor: '#d4d4d8' },
   }),
-  configVector: css({ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 4 }),
-  configVector2: css({ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }),
-  configJson: css({ display: 'grid', gap: 6 }),
-  configTextarea: css({
+  fieldVector: css({ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 4 }),
+  fieldVector2: css({ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }),
+  fieldJson: css({ display: 'grid', gap: 6 }),
+  fieldTextarea: css({
     width: '100%',
     boxSizing: 'border-box',
     minHeight: 92,
@@ -69,7 +69,7 @@ export const styles = {
     padding: '6px 7px',
     '&:focus': { outline: '2px solid rgba(9, 9, 11, 0.08)', borderColor: '#d4d4d8' },
   }),
-  configButton: css({
+  fieldButton: css({
     justifySelf: 'end',
     border: '1px solid #e4e4e7',
     background: '#ffffff',
@@ -82,9 +82,9 @@ export const styles = {
     '&:hover': { background: '#f4f4f5' },
     '&:disabled': { cursor: 'not-allowed', color: '#a1a1aa', background: '#fafafa' },
   }),
-  configFileUpload: css({ display: 'grid', gap: 5 }),
-  configFileRow: css({ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 6 }),
-  configFileButton: css({
+  fieldFileUpload: css({ display: 'grid', gap: 5 }),
+  fieldFileRow: css({ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 6 }),
+  fieldFileButton: css({
     border: '1px solid #e4e4e7',
     background: '#ffffff',
     color: '#09090b',
@@ -101,13 +101,13 @@ export const styles = {
     '&[data-disabled="true"]': { cursor: 'not-allowed', color: '#a1a1aa', background: '#fafafa' },
     '& svg': { width: 14, height: 14, strokeWidth: 1.9 },
   }),
-  configFileInput: css({ display: 'none' }),
-  configFileError: css({ color: '#b42318', fontSize: 11, lineHeight: 1.35 }),
-  configCustomField: css({ minWidth: 0 }),
-  configMissingField: css({ color: '#52525b', fontSize: 12 }),
+  fieldFileInput: css({ display: 'none' }),
+  fieldFileError: css({ color: '#b42318', fontSize: 11, lineHeight: 1.35 }),
+  fieldCustomField: css({ minWidth: 0 }),
+  fieldMissingField: css({ color: '#52525b', fontSize: 12 }),
   previewFrameSlot: css({ position: 'relative', width: '100%', height: '100%', minWidth: 0, minHeight: 0 }),
   iframe: css({ width: '100%', height: '100%', border: 'none', background: '#ffffff', display: 'block' }),
-  previewCanvasLayer: css({
+  overlayCanvasSlot: css({
     position: 'relative',
     width: '100%',
     height: '100%',
@@ -115,11 +115,11 @@ export const styles = {
     minHeight: 0,
     overflow: 'hidden',
   }),
-  previewCanvasViewport: css({
+  overlayCanvasViewport: css({
     position: 'absolute',
     overflow: 'hidden',
   }),
-  previewCanvas: css({
+  overlayCanvas: css({
     width: '100%',
     height: '100%',
     background: 'transparent',

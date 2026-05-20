@@ -11,10 +11,10 @@ const overlayPath = [
   { id: 'editor-preview', title: 'Preview', arrangement: 'layer-stack', hideTitle: true, order: 20, size: 52 },
   { id: 'editor-preview-overlay', title: 'Overlay Canvas', fill: true, interactive: true, order: 10, unstyled: true },
 ] as const satisfies EditorSlotPath;
-const configPath = [
+const fieldsPath = [
   { id: 'editor-root', title: 'Editor', arrangement: 'dock-row' },
   { id: 'editor-side', title: 'Tools', arrangement: 'nav-top-icons', hideTitle: true, order: 30, size: 24 },
-  { id: 'editor-config', title: 'Config', arrangement: 'accordion', defaultActive: true },
+  { id: 'editor-fields', title: 'Fields', arrangement: 'accordion', defaultActive: true },
 ] as const satisfies EditorFolderPath;
 const aiPath = [
   { id: 'editor-root', title: 'Editor', arrangement: 'dock-row' },
@@ -26,7 +26,7 @@ export default {
   plugins: [editorPlugin({
     previewPath,
     overlayPath,
-    configPath,
+    fieldsPath,
     plugins: [ai({ path: aiPath })],
   })],
   optimizeDeps: {

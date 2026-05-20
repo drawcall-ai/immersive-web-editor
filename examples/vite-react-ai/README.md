@@ -20,8 +20,8 @@ Open:
 http://127.0.0.1:5177/editor
 ```
 
-The preview is a config showcase. It registers `Scene`, `Hero NPC`, and
-`Enemy Wave` panels from `config(...)` / `val(...)` calls in `src/App.tsx`.
+The preview is a field showcase. It registers `Scene`, `Hero NPC`, and
+`Enemy Wave` field folders from `config(...)` / `val(...)` calls in `src/App.tsx`.
 Changing a generated control writes raw JSON back to the matching `val(...)`
 argument through the POST endpoint.
 

@@ -8,8 +8,8 @@ import ToggleLeft from 'lucide-react/dist/esm/icons/toggle-left.js';
 import Upload from 'lucide-react/dist/esm/icons/upload.js';
 import X from 'lucide-react/dist/esm/icons/x.js';
 import { useEffect, useState, type ChangeEvent, type KeyboardEvent } from 'react';
-import { OverlayCanvasPortal } from './client/overlay-canvas';
-import { styles } from './client/styles';
+import { OverlayCanvasPortal } from './ui/overlay-canvas';
+import { styles } from './ui/styles';
 import {
   EDITOR_PUBLIC_FILES_PATH,
   isListPublicFilesResponse,
@@ -121,7 +121,7 @@ function CommittedNumberInput({
   return (
     <input
       aria-label={ariaLabel}
-      className={styles.configInput}
+      className={styles.fieldInput}
       max={max}
       min={min}
       step={step}
@@ -180,8 +180,8 @@ function CommittedStringInput({
   };
 
   return multiline
-    ? <textarea className={styles.configTextarea} {...sharedProps} />
-    : <input className={styles.configInput} {...sharedProps} />;
+    ? <textarea className={styles.fieldTextarea} {...sharedProps} />
+    : <input className={styles.fieldInput} {...sharedProps} />;
 }
 
 function VectorInput({
@@ -197,7 +197,7 @@ function VectorInput({
 }) {
   const vector = Array.isArray(value) ? value : [];
   return (
-    <div className={cx(styles.configVector, size === 2 && styles.configVector2)}>
+    <div className={cx(styles.fieldVector, size === 2 && styles.fieldVector2)}>
       {Array.from({ length: size }, (_, index) => (
         <CommittedNumberInput
           ariaLabel={['x', 'y', 'z'][index] ?? String(index)}
@@ -238,7 +238,7 @@ export const NumberFieldComponent: EditorFieldComponent = ({ field, setValue, va
 );
 
 export const BooleanFieldComponent: EditorFieldComponent = ({ setValue, value }) => (
-  <label className={styles.configToggle}>
+  <label className={styles.fieldToggle}>
     <input type="checkbox" checked={typeof value === 'boolean' ? value : false} onChange={(event) => setValue(event.currentTarget.checked)} />
     <span>{value ? 'On' : 'Off'}</span>
   </label>
@@ -246,7 +246,7 @@ export const BooleanFieldComponent: EditorFieldComponent = ({ setValue, value })
 
 export const ColorFieldComponent: EditorFieldComponent = ({ setValue, value }) => (
   <input
-    className={cx(styles.configInput, styles.configColor)}
+    className={cx(styles.fieldInput, styles.fieldColor)}
     type="color"
     value={typeof value === 'string' ? value : '#ffffff'}
     onChange={(event) => setValue(event.currentTarget.value)}
@@ -404,10 +404,10 @@ function FileUrlInput({
   };
 
   return (
-    <div className={styles.configFileUpload}>
-      <div className={styles.configFileRow}>
+    <div className={styles.fieldFileUpload}>
+      <div className={styles.fieldFileRow}>
         <select
-          className={styles.configSelect}
+          className={styles.fieldSelect}
           value={selectedValue}
           onChange={(event) => setValue(event.currentTarget.value)}
         >
@@ -423,12 +423,12 @@ function FileUrlInput({
             </option>
           ))}
         </select>
-        <label className={styles.configFileButton} data-disabled={uploading ? 'true' : undefined}>
+        <label className={styles.fieldFileButton} data-disabled={uploading ? 'true' : undefined}>
           <Upload aria-hidden />
           <span>{uploading ? 'Uploading' : 'Upload'}</span>
           <input
             accept={accept}
-            className={styles.configFileInput}
+            className={styles.fieldFileInput}
             disabled={uploading}
             type="file"
             onChange={(event) => {
@@ -439,8 +439,8 @@ function FileUrlInput({
           />
         </label>
       </div>
-      {filesQuery.error && <div className={styles.configFileError}>{filesQuery.error}</div>}
-      {error && <div className={styles.configFileError}>{error}</div>}
+      {filesQuery.error && <div className={styles.fieldFileError}>{filesQuery.error}</div>}
+      {error && <div className={styles.fieldFileError}>{error}</div>}
     </div>
   );
 }
@@ -487,13 +487,13 @@ export const Vector3WithHandleFieldComponent: EditorFieldComponent = ({ field, s
 const DEFAULT_TRANSFORM_3D: Transform3D = { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] };
 
 export const Transform3DFieldComponent: EditorFieldComponent = ({
-  configPath,
+  fieldsPath,
   dataPath,
   field,
-  fieldSegment,
+  slotSegment,
   folder,
   label,
-  panelFolder,
+  fieldFolder,
   renderSlot,
   setValue,
   slotPath,
@@ -503,8 +503,8 @@ export const Transform3DFieldComponent: EditorFieldComponent = ({
   const fallback = transform3DValue(field.defaultValue ?? null, DEFAULT_TRANSFORM_3D);
   const current = transform3DValue(value, fallback);
   const parent = [
-    ...configPath,
-    panelFolder,
+    ...fieldsPath,
+    fieldFolder,
     ...viewPath.slice(0, -1),
     folder(label, `transform3d:${dataPath.join('.')}`, undefined, 'accordion', { defaultCollapsed: false }),
   ];
@@ -524,15 +524,15 @@ export const Transform3DFieldComponent: EditorFieldComponent = ({
     <>
       {renderSlot(
         <VectorInput field={field} size={3} value={current.position} setValue={(next) => commit('position', next as Vector3)} />,
-        slotPath(parent, fieldSegment('Position', `${dataPath.join('.')}:position`)),
+        slotPath(parent, slotSegment('Position', `${dataPath.join('.')}:position`)),
       )}
       {renderSlot(
         <VectorInput field={field} size={3} value={current.rotation} setValue={(next) => commit('rotation', next as Vector3)} />,
-        slotPath(parent, fieldSegment('Rotation', `${dataPath.join('.')}:rotation`)),
+        slotPath(parent, slotSegment('Rotation', `${dataPath.join('.')}:rotation`)),
       )}
       {renderSlot(
         <VectorInput field={field} size={3} value={current.scale} setValue={(next) => commit('scale', next as Vector3)} />,
-        slotPath(parent, fieldSegment('Scale', `${dataPath.join('.')}:scale`)),
+        slotPath(parent, slotSegment('Scale', `${dataPath.join('.')}:scale`)),
       )}
       <OverlayCanvasPortal>
         <PivotHandlesContext
@@ -565,14 +565,14 @@ export const ObjectFieldComponent: EditorFieldComponent = ({ dataPath, defaultVa
 };
 
 export const ArrayFieldComponent: EditorFieldComponent = ({
-  configPath,
+  fieldsPath,
   dataPath,
   defaultValue,
   field,
-  fieldSegment,
+  slotSegment,
   folder,
   label,
-  panelFolder,
+  fieldFolder,
   renderField,
   renderSlot,
   setValue,
@@ -601,7 +601,7 @@ export const ArrayFieldComponent: EditorFieldComponent = ({
   return (
     <>
       {current.length === 0 && (
-        renderSlot(null, slotPath([...configPath, panelFolder, ...viewPath.slice(0, -1), arrayFolder], fieldSegment('', `empty:${dataPath.join('.')}`, { hidden: true })))
+        renderSlot(null, slotPath([...fieldsPath, fieldFolder, ...viewPath.slice(0, -1), arrayFolder], slotSegment('', `empty:${dataPath.join('.')}`, { hidden: true })))
       )}
       {current.map((itemValue, index) => {
         const itemLabel = `${itemLabelValue ?? 'Item'} ${index + 1}`;
@@ -636,12 +636,12 @@ export const ArrayFieldComponent: EditorFieldComponent = ({
 };
 
 export const OptionalFieldComponent: EditorFieldComponent = ({
-  configPath,
+  fieldsPath,
   dataPath,
   defaultValue,
   field,
-  fieldSegment,
-  panelFolder,
+  slotSegment,
+  fieldFolder,
   path,
   renderField,
   renderSlot,
@@ -653,7 +653,7 @@ export const OptionalFieldComponent: EditorFieldComponent = ({
   const item = propDescriptor(field.props, 'item') ?? json().descriptor;
   if (value === null) {
     return renderSlot(
-        <button className={styles.configButton} type="button" onClick={() => setValue(defaultValue(item))}>
+        <button className={styles.fieldButton} type="button" onClick={() => setValue(defaultValue(item))}>
           Set value
         </button>,
         path,
@@ -670,10 +670,10 @@ export const OptionalFieldComponent: EditorFieldComponent = ({
         setValue,
       })}
       {renderSlot(
-        <button className={styles.configButton} type="button" onClick={() => setValue(null)}>
+        <button className={styles.fieldButton} type="button" onClick={() => setValue(null)}>
           Clear
         </button>,
-        slotPath([...configPath, panelFolder, ...viewPath.slice(0, -1)], fieldSegment(`${pathTitle(viewPath.at(-1))} state`, `optional:${dataPath.join('.')}`, { icon: <ToggleLeft aria-hidden /> })),
+        slotPath([...fieldsPath, fieldFolder, ...viewPath.slice(0, -1)], slotSegment(`${pathTitle(viewPath.at(-1))} state`, `optional:${dataPath.join('.')}`, { icon: <ToggleLeft aria-hidden /> })),
       )}
     </>
   );
@@ -682,7 +682,7 @@ export const OptionalFieldComponent: EditorFieldComponent = ({
 export const JsonFieldComponent: EditorFieldComponent = ({ path, renderSlot, setValue, value }) => (
   renderSlot(
     <textarea
-      className={styles.configTextarea}
+      className={styles.fieldTextarea}
       value={JSON.stringify(value, null, 2)}
       onChange={(event) => {
         try {

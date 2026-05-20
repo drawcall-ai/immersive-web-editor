@@ -68,7 +68,7 @@ export interface FolderSegment {
   size?: number;
 }
 
-export interface FieldSegment {
+export interface SlotSegment {
   id?: string;
   title: string;
   icon?: ReactNode;
@@ -82,7 +82,7 @@ export interface FieldSegment {
   unstyled?: boolean;
 }
 
-export type SlotPath = readonly [FieldSegment] | readonly [...FolderSegment[], FieldSegment];
+export type SlotPath = readonly [SlotSegment] | readonly [...FolderSegment[], SlotSegment];
 
 export interface EditorRoot {
   id?: string;
@@ -113,15 +113,15 @@ interface FolderNode {
   order: number;
   size?: number;
   folders: FolderNode[];
-  fields: SlotRecord[];
-  fieldSegments: Map<string, FieldSegment>;
+  slots: SlotRecord[];
+  slotSegments: Map<string, SlotSegment>;
 }
 
 type LayoutItem =
-  | { type: 'field'; key: string; order: number; segment?: FieldSegment; size?: number; slot: SlotRecord; title: string }
+  | { type: 'slot'; key: string; order: number; segment?: SlotSegment; size?: number; slot: SlotRecord; title: string }
   | { type: 'folder'; key: string; node: FolderNode; order: number; size?: number; title: string };
 
-type FieldLayoutItem = Extract<LayoutItem, { type: 'field' }>;
+type SlotLayoutItem = Extract<LayoutItem, { type: 'slot' }>;
 type FolderLayoutItem = Extract<LayoutItem, { type: 'folder' }>;
 
 interface EditorContextValue {
@@ -414,7 +414,7 @@ const styles = {
   }),
   accordionChevron: css({ marginLeft: 'auto', transition: 'transform 120ms ease' }),
   accordionContent: css({ padding: '4px 8px 8px' }),
-  dockShell: css({ height: '100%', minHeight: 0, minWidth: 0, overflow: 'hidden' }),
+  dockPanel: css({ height: '100%', minHeight: 0, minWidth: 0, overflow: 'hidden' }),
   dock: css({ height: '100%', minHeight: 0, minWidth: 0 }),
   dockCell: css({ minWidth: 0, minHeight: 0, overflow: 'hidden' }),
   resizeHandle: css({
@@ -435,8 +435,8 @@ const styles = {
   }),
   grid: css({ boxSizing: 'border-box', display: 'grid', gap: 8, padding: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', overflow: 'auto' }),
   gridCell: css({ minWidth: 0, minHeight: 0 }),
-  fields: css({ boxSizing: 'border-box', display: 'grid', gap: 8, padding: 8, '&[data-fill="true"]': { height: '100%', padding: 0 } }),
-  fieldHost: css({
+  slots: css({ boxSizing: 'border-box', display: 'grid', gap: 8, padding: 8, '&[data-fill="true"]': { height: '100%', padding: 0 } }),
+  slotTarget: css({
     minWidth: 0,
     display: 'grid',
     gap: 5,
@@ -444,8 +444,8 @@ const styles = {
     '&[data-fill="true"]': { height: '100%', minHeight: 0 },
     '&[data-unstyled="true"]': { padding: 0, gap: 0 },
   }),
-  fieldHostLabel: css({ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, color: t.color.muted, fontWeight: 500 }),
-  fieldHostContent: css({ minWidth: 0, minHeight: 0, overflow: 'hidden', '[data-fill="true"] > &': { height: '100%' } }),
+  slotTargetLabel: css({ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, color: t.color.muted, fontWeight: 500 }),
+  slotTargetContent: css({ minWidth: 0, minHeight: 0, overflow: 'hidden', '[data-fill="true"] > &': { height: '100%' } }),
   input: css({
     width: '100%',
     boxSizing: 'border-box',
@@ -520,7 +520,7 @@ export function Editor({ root, children }: { root: EditorRoot; children: ReactNo
     <EditorContext.Provider value={value}>
       <Tooltip.Provider delayDuration={300} skipDelayDuration={150}>
         <div className={styles.editor}>
-          <Workbench />
+          <EditorLayout />
           <div className={styles.contributionRoot}>{children}</div>
         </div>
       </Tooltip.Provider>
@@ -548,7 +548,7 @@ export function Slot({ path, children }: { path: SlotPath; children: ReactNode }
   return target ? createPortal(children, target) : null;
 }
 
-function Workbench() {
+function EditorLayout() {
   const editor = useEditor();
   const tree = useMemo(() => buildTree(editor.root, [...editor.slots.values()]), [editor.root, editor.slots]);
   return <FolderRenderer node={tree} parentKey="__root__" isRoot />;
@@ -583,9 +583,9 @@ function buildTree(root: EditorRoot, slots: SlotRecord[]): FolderNode {
       parentKey = key;
     }
 
-    const leaf = slot.path[slot.path.length - 1] as FieldSegment;
-    parent.fields.push(slot);
-    parent.fieldSegments.set(slot.id, leaf);
+    const leaf = slot.path[slot.path.length - 1] as SlotSegment;
+    parent.slots.push(slot);
+    parent.slotSegments.set(slot.id, leaf);
   }
 
   sortTree(rootNode);
@@ -608,8 +608,8 @@ function createFolderNode(segment: FolderSegment, key: string): FolderNode {
     order: segment.order ?? Number.POSITIVE_INFINITY,
     size: segment.size,
     folders: [],
-    fields: [],
-    fieldSegments: new Map(),
+    slots: [],
+    slotSegments: new Map(),
   };
 }
 
@@ -632,9 +632,9 @@ function mergeFolderNode(node: FolderNode, segment: FolderSegment): FolderNode {
 
 function sortTree(node: FolderNode): void {
   node.folders.sort(compareByTitle);
-  node.fields.sort((a, b) => {
-    const aSegment = node.fieldSegments.get(a.id);
-    const bSegment = node.fieldSegments.get(b.id);
+  node.slots.sort((a, b) => {
+    const aSegment = node.slotSegments.get(a.id);
+    const bSegment = node.slotSegments.get(b.id);
     return compareTitleValues(aSegment?.title, bSegment?.title) || a.sourceOrder - b.sourceOrder;
   });
   for (const child of node.folders) sortTree(child);
@@ -681,7 +681,7 @@ function singleRenderableChild(node: FolderNode): LayoutItem | null {
 }
 
 function folderHasFill(node: FolderNode): boolean {
-  return node.fields.some((slot) => node.fieldSegments.get(slot.id)?.fill)
+  return node.slots.some((slot) => node.slotSegments.get(slot.id)?.fill)
     || node.folders.some((folder) => folderHasFill(folder));
 }
 
@@ -920,7 +920,7 @@ function NavItem({
 }
 
 function TabsArrangement({ node }: { node: FolderNode }) {
-  const { fields, folders } = splitLayoutItems(node);
+  const { slots, folders } = splitLayoutItems(node);
   const [active, setActive] = useState(() => folders.find((item) => item.node.defaultActive)?.key ?? folders[0]?.key ?? '');
   useEffect(() => {
     if (folders.length === 0) return;
@@ -930,14 +930,14 @@ function TabsArrangement({ node }: { node: FolderNode }) {
   const activeItem = folders.find((item) => item.key === active) ?? folders[0];
   const activeFolder = activeItem?.node;
   if (folders.length === 0) {
-    return <FieldItemsList items={fields} />;
+    return <SlotItemsList items={slots} />;
   }
-  if (fields.length === 0 && folders.length === 1 && !node.preserveFolder) {
+  if (slots.length === 0 && folders.length === 1 && !node.preserveFolder) {
     return <LayoutItemRenderer item={activeItem} parentKey={node.key} />;
   }
   return (
     <Tabs.Root className={styles.tabs} value={activeItem?.key ?? ''} onValueChange={setActive}>
-      <FieldItemsList items={fields} />
+      <SlotItemsList items={slots} />
       <Tabs.List aria-label={node.title} className={styles.tabbar}>
         {folders.map((item) => (
           <Tabs.Trigger className={styles.tab} key={item.key} value={item.key}>
@@ -971,7 +971,7 @@ function TabsArrangement({ node }: { node: FolderNode }) {
 }
 
 function DropdownArrangement({ node }: { node: FolderNode }) {
-  const { fields, folders } = splitLayoutItems(node);
+  const { slots, folders } = splitLayoutItems(node);
   const [active, setActive] = useState(() => folders.find((item) => item.node.defaultActive)?.key ?? folders[0]?.key ?? '');
   useEffect(() => {
     if (folders.length === 0) return;
@@ -982,12 +982,12 @@ function DropdownArrangement({ node }: { node: FolderNode }) {
   const activeFolder = activeItem?.node;
 
   if (folders.length === 0) {
-    return <FieldItemsList items={fields} />;
+    return <SlotItemsList items={slots} />;
   }
 
   return (
     <div className={styles.dropdown}>
-      <FieldItemsList items={fields} />
+      <SlotItemsList items={slots} />
       <div className={styles.dropdownBar}>
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
@@ -1039,14 +1039,14 @@ function DropdownArrangement({ node }: { node: FolderNode }) {
 }
 
 function AccordionArrangement({ node }: { node: FolderNode }) {
-  const { fields, folders } = splitLayoutItems(node);
+  const { slots, folders } = splitLayoutItems(node);
   return (
     <Accordion.Root
       className={styles.accordion}
       defaultValue={folders.filter((item) => !item.node.defaultCollapsed).map((item) => item.key)}
       type="multiple"
     >
-      <FieldItemsList items={fields} />
+      <SlotItemsList items={slots} />
       {folders.map((item) => (
         <Accordion.Item className={styles.accordionItem} key={item.key} value={item.key}>
           <div className={styles.accordionHeading}>
@@ -1068,18 +1068,18 @@ function AccordionArrangement({ node }: { node: FolderNode }) {
 
 function DockArrangement({ node, direction }: { node: FolderNode; direction: 'horizontal' | 'vertical' }) {
   const items = layoutItems(node);
-  const shellRef = useRef<HTMLDivElement | null>(null);
-  const shellWidth = useElementWidth(shellRef);
-  const effectiveDirection = direction === 'horizontal' && shellWidth > 0 && shellWidth < DOCK_ROW_WRAP_WIDTH
+  const dockPanelRef = useRef<HTMLDivElement | null>(null);
+  const dockPanelWidth = useElementWidth(dockPanelRef);
+  const effectiveDirection = direction === 'horizontal' && dockPanelWidth > 0 && dockPanelWidth < DOCK_ROW_WRAP_WIDTH
     ? 'vertical'
     : direction;
 
   return (
     <div
-      className={styles.dockShell}
+      className={styles.dockPanel}
       data-direction={effectiveDirection}
       data-source-direction={direction}
-      ref={shellRef}
+      ref={dockPanelRef}
     >
       <Group
         key={`${node.key}-${effectiveDirection}`}
@@ -1142,7 +1142,7 @@ function LayerStackArrangement({ node }: { node: FolderNode }) {
   return (
     <div className={styles.layerStack}>
       {items.map((item) => {
-        const segment = item.type === 'field' ? node.fieldSegments.get(item.slot.id) : undefined;
+        const segment = item.type === 'slot' ? node.slotSegments.get(item.slot.id) : undefined;
         return (
           <div
             className={styles.layerStackLayer}
@@ -1173,7 +1173,7 @@ function GridArrangement({ node }: { node: FolderNode }) {
 function layoutItems(node: FolderNode): LayoutItem[] {
   return [
     ...node.folders.map(folderLayoutItem),
-    ...node.fields.map((slot) => fieldLayoutItem(node, slot)),
+    ...node.slots.map((slot) => slotLayoutItem(node, slot)),
   ].sort((a, b) => {
     const order = a.order - b.order;
     if (order !== 0) return order;
@@ -1203,10 +1203,10 @@ function folderLayoutItem(folder: FolderNode): LayoutItem {
   };
 }
 
-function fieldLayoutItem(node: FolderNode, slot: SlotRecord): FieldLayoutItem {
-  const segment = node.fieldSegments.get(slot.id);
+function slotLayoutItem(node: FolderNode, slot: SlotRecord): SlotLayoutItem {
+  const segment = node.slotSegments.get(slot.id);
   return {
-    type: 'field',
+    type: 'slot',
     key: slot.id,
     order: segment?.order ?? Number.POSITIVE_INFINITY,
     segment,
@@ -1216,14 +1216,14 @@ function fieldLayoutItem(node: FolderNode, slot: SlotRecord): FieldLayoutItem {
   };
 }
 
-function splitLayoutItems(node: FolderNode): { fields: FieldLayoutItem[]; folders: FolderLayoutItem[] } {
-  const fields: FieldLayoutItem[] = [];
+function splitLayoutItems(node: FolderNode): { slots: SlotLayoutItem[]; folders: FolderLayoutItem[] } {
+  const slots: SlotLayoutItem[] = [];
   const folders: FolderLayoutItem[] = [];
   for (const item of layoutItems(node)) {
-    if (item.type === 'field') fields.push(item);
+    if (item.type === 'slot') slots.push(item);
     else folders.push(item);
   }
-  return { fields, folders };
+  return { slots, folders };
 }
 
 function slotPathTitle(path: SlotPath): string {
@@ -1232,21 +1232,21 @@ function slotPathTitle(path: SlotPath): string {
 
 function LayoutItemRenderer({ item, parentKey }: { item: LayoutItem; parentKey: string }) {
   if (item.type === 'folder') return <FolderRenderer node={item.node} parentKey={parentKey} />;
-  return <FieldHost pathTitle={slotPathTitle(item.slot.path)} segment={item.segment} slotId={item.slot.id} />;
+  return <SlotTarget pathTitle={slotPathTitle(item.slot.path)} segment={item.segment} slotId={item.slot.id} />;
 }
 
-function FieldList({ node }: { node: FolderNode }) {
-  if (node.fields.length === 0) return null;
-  return <FieldItemsList items={node.fields.map((slot) => fieldLayoutItem(node, slot))} />;
+function SlotList({ node }: { node: FolderNode }) {
+  if (node.slots.length === 0) return null;
+  return <SlotItemsList items={node.slots.map((slot) => slotLayoutItem(node, slot))} />;
 }
 
-function FieldItemsList({ items }: { items: FieldLayoutItem[] }) {
+function SlotItemsList({ items }: { items: SlotLayoutItem[] }) {
   if (items.length === 0) return null;
-  const hasFillField = items.some((item) => item.segment?.fill);
+  const hasFillSlot = items.some((item) => item.segment?.fill);
   return (
-    <div className={styles.fields} data-fill={hasFillField ? 'true' : 'false'}>
+    <div className={styles.slots} data-fill={hasFillSlot ? 'true' : 'false'}>
       {items.map((item) => (
-        <FieldHost
+        <SlotTarget
           key={item.key}
           pathTitle={slotPathTitle(item.slot.path)}
           segment={item.segment}
@@ -1257,13 +1257,13 @@ function FieldItemsList({ items }: { items: FieldLayoutItem[] }) {
   );
 }
 
-function FieldHost({
+function SlotTarget({
   pathTitle,
   segment,
   slotId,
 }: {
   pathTitle: string;
-  segment: FieldSegment | undefined;
+  segment: SlotSegment | undefined;
   slotId: string;
 }) {
   const { registerTarget } = useEditor();
@@ -1273,7 +1273,7 @@ function FieldHost({
 
   return (
     <div
-      className={styles.fieldHost}
+      className={styles.slotTarget}
       data-align={segment?.align ?? 'stretch'}
       data-fill={segment?.fill ? 'true' : 'false'}
       data-hidden={segment?.hidden ? 'true' : 'false'}
@@ -1283,12 +1283,12 @@ function FieldHost({
       data-unstyled={segment?.unstyled ? 'true' : 'false'}
     >
       {segment?.fill ? null : (
-        <div className={styles.fieldHostLabel}>
+        <div className={styles.slotTargetLabel}>
           {segment?.icon && <span className={styles.folderIcon}>{segment.icon}</span>}
           <span>{segment?.title}</span>
         </div>
       )}
-      <div className={styles.fieldHostContent} ref={setTarget} />
+      <div className={styles.slotTargetContent} ref={setTarget} />
     </div>
   );
 }

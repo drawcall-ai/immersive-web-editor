@@ -7,7 +7,7 @@ import pc from 'picocolors';
 import type { Plugin, ViteDevServer } from 'vite';
 import type { EditorApiErrorResponse, ListPublicFilesResponse, PublicFile, UploadPublicFileResponse } from '../rpc.js';
 import {
-  DEFAULT_CONFIG_PATH,
+  DEFAULT_FIELDS_PATH,
   DEFAULT_OVERLAY_PATH,
   DEFAULT_PREVIEW_PATH,
   type EditorFolderPath,
@@ -17,12 +17,12 @@ import {
 } from './options.js';
 
 const EDITOR_PATH = '/editor';
-const CONFIGURABLES_PATH = '/__editor/configurables';
+const AUTHORED_VALUES_PATH = '/__editor/authored-values';
 const EDITOR_PUBLIC_FILES_PATH: typeof import('../rpc.js').EDITOR_PUBLIC_FILES_PATH = '/__editor/public-files';
-const EDITOR_SHELL_VIRTUAL_ID = 'virtual:editor/shell';
+const EDITOR_UI_VIRTUAL_ID = 'virtual:editor/ui';
 const EDITOR_CONFIG_VIRTUAL_ID = 'virtual:editor/config';
 const EDITOR_PLUGIN_VIRTUAL_PREFIX = 'virtual:editor/plugin/';
-const CONFIGURABLE_MODULE_ID = 'immersive-web-editor';
+const AUTHORING_API_MODULE_ID = 'immersive-web-editor';
 const EDITOR_COMPONENT_QUERY = 'editor-component';
 const REACT_DEDUPE = ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime'];
 
@@ -40,8 +40,8 @@ const REACT_ALIASES = [
   { find: /^react-dom$/, replacement: require.resolve('react-dom') },
   { find: /^react-dom\/client$/, replacement: require.resolve('react-dom/client') },
 ];
-const appEntry = resolve(packageSourceDir, 'app', entryFile.endsWith('.ts') || packageSourceDir.endsWith(`${sep}src`) ? 'index.ts' : 'index.js');
-const editorEntry = resolve(packageSourceDir, 'editor', entryFile.endsWith('.ts') || packageSourceDir.endsWith(`${sep}src`) ? 'index.tsx' : 'index.js');
+const authoringApiEntry = resolve(packageSourceDir, entryFile.endsWith('.ts') || packageSourceDir.endsWith(`${sep}src`) ? 'authoring-api.ts' : 'authoring-api.js');
+const editorEntry = resolve(packageSourceDir, 'ui', entryFile.endsWith('.ts') || packageSourceDir.endsWith(`${sep}src`) ? 'entry.tsx' : 'entry.js');
 const uiSrcDir = resolve(packageSourceDir, '../../ui/src');
 const adapterSrcDir = resolve(packageSourceDir, '../../adapter/src');
 
@@ -57,10 +57,10 @@ function isBareModuleId(value: string): boolean {
   return !value.startsWith('/') && !value.startsWith('.') && !/^[A-Za-z]:[\\/]/.test(value);
 }
 
-interface ConfigurableRecord {
+interface AuthoredValueRecord {
   id: string;
   modulePath: string;
-  panel: string;
+  fieldFolder: string;
   path: string[];
   value: unknown;
   file: string;
@@ -72,9 +72,9 @@ interface ConfigurableRecord {
   source: string;
 }
 
-interface ConfigurableCall {
+interface AuthoredValueCall {
   id: string;
-  panel: string;
+  fieldFolder: string;
   path: string[];
   openParen: number;
   valueStart: number;
@@ -130,7 +130,7 @@ function importedAliases(code: string): {
   const components = new Set<string>();
   const values = new Set<string>();
   const importPattern = new RegExp(
-    String.raw`import\s*\{([^}]+)\}\s*from\s*['"]${escapeRegExp(CONFIGURABLE_MODULE_ID)}['"]`,
+    String.raw`import\s*\{([^}]+)\}\s*from\s*['"]${escapeRegExp(AUTHORING_API_MODULE_ID)}['"]`,
     'g',
   );
 
@@ -386,7 +386,7 @@ function findValueCall(
   code: string,
   range: { start: number; end: number },
   values: Set<string>,
-): ConfigurableCall | null {
+): AuthoredValueCall | null {
   const cursor = skipWhitespace(code, range.start);
   const alias = [...values].find((candidate) => (
     code.startsWith(candidate, cursor) && !isIdentifierChar(code[cursor + candidate.length])
@@ -416,7 +416,7 @@ function findValueCall(
 
   return {
     id: '',
-    panel: '',
+    fieldFolder: '',
     path: [],
     openParen,
     valueStart: valueArg.start,
@@ -436,12 +436,12 @@ function safeJsonParse(source: string): unknown {
 function collectValueCallsInShape(
   code: string,
   range: { start: number; end: number },
-  panel: string,
+  fieldFolder: string,
   path: string[],
   values: Set<string>,
-): ConfigurableCall[] {
+): AuthoredValueCall[] {
   const valueCall = findValueCall(code, range, values);
-  if (valueCall) return [{ ...valueCall, panel, path }];
+  if (valueCall) return [{ ...valueCall, fieldFolder, path }];
 
   const cursor = skipWhitespace(code, range.start);
   if (code[cursor] !== '{') return [];
@@ -449,14 +449,14 @@ function collectValueCallsInShape(
   if (close === -1 || skipWhitespaceInRange(code, close + 1, range.end) !== range.end) return [];
 
   return splitObjectProperties(code, cursor, close).flatMap((property) => (
-    collectValueCallsInShape(code, property.value, panel, [...path, property.key], values)
+    collectValueCallsInShape(code, property.value, fieldFolder, [...path, property.key], values)
   ));
 }
 
-function findConfigurableCalls(code: string, aliases: ReturnType<typeof importedAliases>): ConfigurableCall[] {
+function findAuthoredValueCalls(code: string, aliases: ReturnType<typeof importedAliases>): AuthoredValueCall[] {
   if (aliases.configs.size === 0 || aliases.values.size === 0) return [];
 
-  const calls: ConfigurableCall[] = [];
+  const calls: AuthoredValueCall[] = [];
   const state: ScanState = { quote: null, lineComment: false, blockComment: false, escaped: false, templateDepth: 0 };
 
   for (let index = 0; index < code.length; index++) {
@@ -506,7 +506,7 @@ function positionAt(code: string, index: number): { line: number; column: number
   return { line, column };
 }
 
-function configurableId(relativeFile: string, line: number, column: number): string {
+function authoredValueId(relativeFile: string, line: number, column: number): string {
   return `editor:${relativeFile}:${line}:${column}`;
 }
 
@@ -517,27 +517,27 @@ function viteModulePath(file: string, root: string): string {
     : fsModulePath(file);
 }
 
-function collectConfigurables(
+function collectAuthoredValues(
   code: string,
   file: string,
   root: string,
   aliases = importedAliases(code),
-): { code: string; records: ConfigurableRecord[] } | null {
-  const calls = findConfigurableCalls(code, aliases);
+): { code: string; records: AuthoredValueRecord[] } | null {
+  const calls = findAuthoredValueCalls(code, aliases);
   if (calls.length === 0) return null;
 
   const relativeFile = normalizePath(relative(root, file));
   const modulePath = viteModulePath(file, root);
-  const records: ConfigurableRecord[] = [];
+  const records: AuthoredValueRecord[] = [];
   let transformed = code;
 
   for (const call of [...calls].reverse()) {
     const { line, column } = positionAt(code, call.valueStart);
-    const id = configurableId(relativeFile, line, column);
+    const id = authoredValueId(relativeFile, line, column);
     records.unshift({
       id,
       modulePath,
-      panel: call.panel,
+      fieldFolder: call.fieldFolder,
       path: call.path,
       value: call.value,
       file,
@@ -548,7 +548,7 @@ function collectConfigurables(
       end: call.valueEnd,
       source: code.slice(call.valueStart, call.valueEnd),
     });
-    transformed = `${transformed.slice(0, call.openParen + 1)}${JSON.stringify({ id, modulePath, panel: call.panel, path: call.path })}, ${transformed.slice(call.openParen + 1)}`;
+    transformed = `${transformed.slice(0, call.openParen + 1)}${JSON.stringify({ id, modulePath, fieldFolder: call.fieldFolder, path: call.path })}, ${transformed.slice(call.openParen + 1)}`;
   }
 
   return { code: transformed, records };
@@ -565,11 +565,11 @@ function editorApiError(message: string): EditorApiErrorResponse {
   return { error: message };
 }
 
-function publicConfigurable(record: ConfigurableRecord): object {
+function publicAuthoredValue(record: AuthoredValueRecord): object {
   return {
     id: record.id,
     modulePath: record.modulePath,
-    panel: record.panel,
+    fieldFolder: record.fieldFolder,
     path: record.path,
     value: record.value,
     file: record.relativeFile,
@@ -877,8 +877,8 @@ function replaceEditorComponentRefs(code: string, file: string, aliases: ReturnT
   return transformed;
 }
 
-function renderEditorShell(): string {
-  // Skeleton HTML for /editor. The shell reads runtime/editor-plugin wiring from
+function renderEditorUi(): string {
+  // Skeleton HTML for /editor. The Editor UI reads runtime/editor-plugin wiring from
   // virtual:editor/config so dev and static builds use the same module graph.
   return `<!doctype html>
 <html lang="en">
@@ -892,7 +892,7 @@ function renderEditorShell(): string {
       window.__vite_plugin_react_preamble_installed__ = true;
     </script>
     <script type="module" src="/@vite/client"></script>
-    <script type="module" src="/@id/__x00__${EDITOR_SHELL_VIRTUAL_ID}"></script>
+    <script type="module" src="/@id/__x00__${EDITOR_UI_VIRTUAL_ID}"></script>
   </head>
   <body></body>
 </html>
@@ -904,7 +904,7 @@ function renderEditorConfigModule(
   previewUrl: string | undefined,
   previewPath: EditorSlotPath,
   overlayPath: EditorSlotPath,
-  configPath: EditorFolderPath,
+  fieldsPath: EditorFolderPath,
 ): string {
   const pluginModules = plugins
     .filter((plugin) => plugin.client)
@@ -921,7 +921,7 @@ function renderEditorConfigModule(
 export const previewUrl = ${JSON.stringify(previewUrl)};
 export const previewPath = ${JSON.stringify(previewPath)};
 export const overlayPath = ${JSON.stringify(overlayPath)};
-export const configPath = ${JSON.stringify(configPath)};
+export const fieldsPath = ${JSON.stringify(fieldsPath)};
 export const pluginModules = [
 ${pluginModules.map((plugin) => `  { name: ${JSON.stringify(plugin.name)}, path: ${JSON.stringify(plugin.path)}, module: ${plugin.importName} },`).join('\n')}
 ];
@@ -946,11 +946,12 @@ function printEditorUrls(server: ViteDevServer): void {
 }
 
 function shouldReloadEditor(file: string): boolean {
-  return isWithin(file, resolve(packageSourceDir, 'client'))
+  return file === resolve(packageSourceDir, 'authoring-api.ts')
     || isWithin(file, resolve(packageSourceDir, 'editor'))
+    || isWithin(file, resolve(packageSourceDir, 'ui'))
+    || file === resolve(packageSourceDir, 'configurable.ts')
     || file === resolve(packageSourceDir, 'default-schema-components.tsx')
     || file === resolve(packageSourceDir, 'default-schemas.tsx')
-    || file === resolve(packageSourceDir, 'editor-components.ts')
     || file === resolve(packageSourceDir, 'rpc.ts')
     || isWithin(file, uiSrcDir)
     || isWithin(file, adapterSrcDir);
@@ -961,24 +962,24 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
   const clientPlugins = plugins.filter((plugin) => plugin.client);
   const previewPath = options.previewPath ?? DEFAULT_PREVIEW_PATH;
   const overlayPath = options.overlayPath ?? DEFAULT_OVERLAY_PATH;
-  const configPath = options.configPath ?? DEFAULT_CONFIG_PATH;
-  const configurablesByFile = new Map<string, ConfigurableRecord[]>();
-  const configurablesById = new Map<string, ConfigurableRecord>();
+  const fieldsPath = options.fieldsPath ?? DEFAULT_FIELDS_PATH;
+  const authoredValuesByFile = new Map<string, AuthoredValueRecord[]>();
+  const authoredValuesById = new Map<string, AuthoredValueRecord>();
   let wsToken = '';
   let transformCalls = 0;
   let root = process.cwd();
   let previewUrl = options.build?.previewUrl;
   let printedEditorUrls = false;
 
-  function replaceFileConfigurables(file: string, records: ConfigurableRecord[]): void {
-    const previous = configurablesByFile.get(file) ?? [];
-    for (const record of previous) configurablesById.delete(record.id);
+  function replaceFileAuthoredValues(file: string, records: AuthoredValueRecord[]): void {
+    const previous = authoredValuesByFile.get(file) ?? [];
+    for (const record of previous) authoredValuesById.delete(record.id);
     if (records.length === 0) {
-      configurablesByFile.delete(file);
+      authoredValuesByFile.delete(file);
       return;
     }
-    configurablesByFile.set(file, records);
-    for (const record of records) configurablesById.set(record.id, record);
+    authoredValuesByFile.set(file, records);
+    for (const record of records) authoredValuesById.set(record.id, record);
   }
 
   function printEditorUrlsOnce(server: ViteDevServer): void {
@@ -1001,7 +1002,7 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
         resolve: {
           alias: [
             ...REACT_ALIASES,
-            { find: new RegExp(`^${escapeRegExp(CONFIGURABLE_MODULE_ID)}$`), replacement: appEntry },
+            { find: new RegExp(`^${escapeRegExp(AUTHORING_API_MODULE_ID)}$`), replacement: authoringApiEntry },
           ],
           dedupe: REACT_DEDUPE,
         },
@@ -1048,26 +1049,26 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
 
       const aliases = importedAliases(code);
       const componentCode = replaceEditorComponentRefs(code, file, aliases);
-      const result = collectConfigurables(componentCode, file, root, aliases);
+      const result = collectAuthoredValues(componentCode, file, root, aliases);
       const nextCode = extractEditorComponents(result?.code ?? componentCode, file);
 
-      replaceFileConfigurables(file, result?.records ?? []);
+      replaceFileAuthoredValues(file, result?.records ?? []);
       if (!result && nextCode === code) return null;
 
       return { code: nextCode, map: null };
     },
 
     resolveId(id) {
-      if (id === EDITOR_SHELL_VIRTUAL_ID) return `\0${EDITOR_SHELL_VIRTUAL_ID}`;
+      if (id === EDITOR_UI_VIRTUAL_ID) return `\0${EDITOR_UI_VIRTUAL_ID}`;
       if (id === EDITOR_CONFIG_VIRTUAL_ID) return `\0${EDITOR_CONFIG_VIRTUAL_ID}`;
       if (id.startsWith(EDITOR_PLUGIN_VIRTUAL_PREFIX)) return `\0${id}`;
       return null;
     },
 
     load(id) {
-      if (id === `\0${EDITOR_SHELL_VIRTUAL_ID}`) return `import ${JSON.stringify(fsModulePath(editorEntry))};`;
+      if (id === `\0${EDITOR_UI_VIRTUAL_ID}`) return `import ${JSON.stringify(fsModulePath(editorEntry))};`;
       if (id === `\0${EDITOR_CONFIG_VIRTUAL_ID}`) {
-        return renderEditorConfigModule(plugins, previewUrl, previewPath, overlayPath, configPath);
+        return renderEditorConfigModule(plugins, previewUrl, previewPath, overlayPath, fieldsPath);
       }
       if (id.startsWith(`\0${EDITOR_PLUGIN_VIRTUAL_PREFIX}`)) {
         const index = Number(id.slice(`\0${EDITOR_PLUGIN_VIRTUAL_PREFIX}`.length));
@@ -1151,11 +1152,11 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
           return;
         }
 
-        if (pathname.startsWith(`${CONFIGURABLES_PATH}/`) && req.method === 'POST') {
-          const id = decodeURIComponent(pathname.slice(CONFIGURABLES_PATH.length + 1));
-          const record = configurablesById.get(id);
+        if (pathname.startsWith(`${AUTHORED_VALUES_PATH}/`) && req.method === 'POST') {
+          const id = decodeURIComponent(pathname.slice(AUTHORED_VALUES_PATH.length + 1));
+          const record = authoredValuesById.get(id);
           if (!record) {
-            sendJson(res, 404, { error: 'Unknown configurable id.' });
+            sendJson(res, 404, { error: 'Unknown authored value id.' });
             return;
           }
 
@@ -1165,7 +1166,7 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
             const currentSource = current.slice(record.start, record.end);
             if (currentSource !== record.source) {
               sendJson(res, 409, {
-                error: 'Configurable source range is stale. Reload the module and retry.',
+                error: 'Authored value source range is stale. Reload the module and retry.',
                 expected: record.source,
                 actual: currentSource,
               });
@@ -1174,16 +1175,16 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
 
             const next = `${current.slice(0, record.start)}${replacement}${current.slice(record.end)}`;
             writeFileSync(record.file, next);
-            const refreshed = collectConfigurables(next, record.file, root);
-            replaceFileConfigurables(record.file, refreshed?.records ?? []);
-            const updatedRecord = configurablesById.get(record.id) ?? {
+            const refreshed = collectAuthoredValues(next, record.file, root);
+            replaceFileAuthoredValues(record.file, refreshed?.records ?? []);
+            const updatedRecord = authoredValuesById.get(record.id) ?? {
               ...record,
               source: replacement,
               value: JSON.parse(replacement) as unknown,
               end: record.start + replacement.length,
             };
             sendJson(res, 200, {
-              ...publicConfigurable(updatedRecord),
+              ...publicAuthoredValue(updatedRecord),
               ok: true,
             });
           } catch (err) {
@@ -1195,7 +1196,7 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
         if (pathname === EDITOR_PATH || pathname === `${EDITOR_PATH}/`) {
           res.setHeader('content-type', 'text/html; charset=utf-8');
           res.setHeader('cache-control', 'no-store');
-          res.end(renderEditorShell());
+          res.end(renderEditorUi());
           return;
         }
         next();
@@ -1211,7 +1212,7 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
 export { editorPlugin };
 export type {
   EditorBuildOptions,
-  EditorFieldPathSegment,
+  EditorSlotPathSegment,
   EditorFolderPath,
   EditorFolderPathSegment,
   EditorOptions,

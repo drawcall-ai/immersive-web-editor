@@ -21,7 +21,7 @@ body {
   box-sizing: border-box;
 }
 
-.workbench {
+.editor-demo {
   width: min(1080px, 100%);
   display: grid;
   gap: 18px;

@@ -45,7 +45,7 @@ export interface EditorFolderPathSegment {
   size?: number;
 }
 
-export interface EditorFieldPathSegment {
+export interface EditorSlotPathSegment {
   id?: string;
   title: string;
   align?: Align;
@@ -57,13 +57,13 @@ export interface EditorFieldPathSegment {
   unstyled?: boolean;
 }
 
-export type EditorSlotPath = readonly [EditorRootPathSegment, ...EditorFolderPathSegment[], EditorFieldPathSegment];
+export type EditorSlotPath = readonly [EditorRootPathSegment, ...EditorFolderPathSegment[], EditorSlotPathSegment];
 export type EditorFolderPath = readonly [EditorRootPathSegment, EditorFolderPathSegment, ...EditorFolderPathSegment[]];
 
 export interface EditorOptions {
   previewPath?: EditorSlotPath;
   overlayPath?: EditorSlotPath;
-  configPath?: EditorFolderPath;
+  fieldsPath?: EditorFolderPath;
   plugins?: EditorPlugin[];
   build?: EditorBuildOptions;
 }
@@ -80,7 +80,7 @@ export const DEFAULT_OVERLAY_PATH: EditorSlotPath = [
   { id: 'editor-preview-overlay', title: 'Overlay Canvas', fill: true, interactive: true, order: 10, unstyled: true },
 ];
 
-export const DEFAULT_CONFIG_PATH: EditorFolderPath = [
+export const DEFAULT_FIELDS_PATH: EditorFolderPath = [
   { id: 'editor-root', title: 'Editor', arrangement: 'dock-row' },
-  { id: 'editor-config', title: 'Config', arrangement: 'accordion', hideTitle: true, order: 30, size: 24 },
+  { id: 'editor-fields', title: 'Fields', arrangement: 'accordion', hideTitle: true, order: 30, size: 24 },
 ];
