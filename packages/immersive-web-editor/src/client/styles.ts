@@ -20,8 +20,6 @@ export const styles = {
     gridTemplateColumns: '232px minmax(0, 1fr)',
     background: '#ffffff',
     color: '#09090b',
-    fontFamily: t.font.sans,
-    fontSize: 13,
   }),
   hostSidebar: css({
     minWidth: 0,
@@ -164,8 +162,6 @@ export const styles = {
     placeItems: 'center',
     background: '#f7f7f8',
     color: '#09090b',
-    fontFamily: t.font.sans,
-    fontSize: 13,
     padding: 20,
   }),
   authPanel: css({
