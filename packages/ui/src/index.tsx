@@ -671,6 +671,7 @@ function FolderRenderer({
 
 function singleRenderableChild(node: FolderNode): LayoutItem | null {
   if (node.actions.length > 0) return null;
+  if (node.keepAlive) return null;
   const items = layoutItems(node);
   return items.length === 1 ? items[0]! : null;
 }
@@ -927,7 +928,7 @@ function TabsArrangement({ node }: { node: FolderNode }) {
   if (folders.length === 0) {
     return <FieldItemsList items={fields} />;
   }
-  if (fields.length === 0 && folders.length === 1) {
+  if (fields.length === 0 && folders.length === 1 && !node.keepAlive) {
     return <LayoutItemRenderer item={activeItem} parentKey={node.key} />;
   }
   return (
