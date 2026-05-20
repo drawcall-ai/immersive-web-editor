@@ -62,7 +62,8 @@ export interface FolderSegment {
   defaultActive?: boolean;
   defaultCollapsed?: boolean;
   hideTitle?: boolean;
-  keepAlive?: boolean;
+  preserveFolder?: boolean;
+  preserveMountedChildren?: boolean;
   order?: number;
   size?: number;
 }
@@ -107,7 +108,8 @@ interface FolderNode {
   defaultActive: boolean;
   defaultCollapsed: boolean;
   hideTitle: boolean;
-  keepAlive: boolean;
+  preserveFolder: boolean;
+  preserveMountedChildren: boolean;
   order: number;
   size?: number;
   folders: FolderNode[];
@@ -601,7 +603,8 @@ function createFolderNode(segment: FolderSegment, key: string): FolderNode {
     defaultActive: segment.defaultActive ?? false,
     defaultCollapsed: segment.defaultCollapsed ?? false,
     hideTitle: segment.hideTitle ?? false,
-    keepAlive: segment.keepAlive ?? false,
+    preserveFolder: segment.preserveFolder ?? false,
+    preserveMountedChildren: segment.preserveMountedChildren ?? false,
     order: segment.order ?? Number.POSITIVE_INFINITY,
     size: segment.size,
     folders: [],
@@ -620,7 +623,8 @@ function mergeFolderNode(node: FolderNode, segment: FolderSegment): FolderNode {
     defaultActive: segment.defaultActive ?? node.defaultActive,
     defaultCollapsed: segment.defaultCollapsed ?? node.defaultCollapsed,
     hideTitle: segment.hideTitle ?? node.hideTitle,
-    keepAlive: segment.keepAlive ?? node.keepAlive,
+    preserveFolder: segment.preserveFolder ?? node.preserveFolder,
+    preserveMountedChildren: segment.preserveMountedChildren ?? node.preserveMountedChildren,
     order: segment.order ?? node.order,
     size: segment.size ?? node.size,
   };
@@ -671,7 +675,7 @@ function FolderRenderer({
 
 function singleRenderableChild(node: FolderNode): LayoutItem | null {
   if (node.actions.length > 0) return null;
-  if (node.keepAlive) return null;
+  if (node.preserveFolder) return null;
   const items = layoutItems(node);
   return items.length === 1 ? items[0]! : null;
 }
@@ -845,7 +849,7 @@ function NavArrangement({
       onValueChange={setActive}
     >
       {placement !== 'bottom' && list}
-      {node.keepAlive ? folders.map((folder) => (
+      {node.preserveMountedChildren ? folders.map((folder) => (
         <Tabs.Content
           className={styles.navContent}
           data-fill={folderHasFill(folder) ? 'true' : 'false'}
@@ -928,7 +932,7 @@ function TabsArrangement({ node }: { node: FolderNode }) {
   if (folders.length === 0) {
     return <FieldItemsList items={fields} />;
   }
-  if (fields.length === 0 && folders.length === 1 && !node.keepAlive) {
+  if (fields.length === 0 && folders.length === 1 && !node.preserveFolder) {
     return <LayoutItemRenderer item={activeItem} parentKey={node.key} />;
   }
   return (
@@ -947,7 +951,7 @@ function TabsArrangement({ node }: { node: FolderNode }) {
           <FolderActionButtons actions={activeFolder.actions} />
         </div>
       )}
-      {node.keepAlive ? folders.map((item) => (
+      {node.preserveMountedChildren ? folders.map((item) => (
         <Tabs.Content
           className={styles.tabPanel}
           forceMount
@@ -1016,7 +1020,7 @@ function DropdownArrangement({ node }: { node: FolderNode }) {
           {activeFolder ? <FolderActionButtons actions={activeFolder.actions} /> : null}
         </div>
       </div>
-      {node.keepAlive ? folders.map((item) => (
+      {node.preserveMountedChildren ? folders.map((item) => (
         <div
           className={styles.dropdownPanel}
           data-fill={folderHasFill(item.node) ? 'true' : 'false'}
