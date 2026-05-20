@@ -52,7 +52,7 @@ export interface EditorFieldComponentProps {
     prefix: string,
     actions?: FolderSegment['actions'],
     arrangement?: FolderSegment['arrangement'],
-    options?: Partial<Pick<FolderSegment, 'defaultActive' | 'defaultCollapsed' | 'hideTitle' | 'icon' | 'order' | 'size'>>,
+    options?: Partial<Pick<FolderSegment, 'defaultActive' | 'defaultCollapsed' | 'hideTitle' | 'icon' | 'keepAlive' | 'order' | 'size'>>,
   ): FolderSegment;
   fieldSegment(
     title: string | number,

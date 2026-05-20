@@ -62,6 +62,7 @@ export interface FolderSegment {
   defaultActive?: boolean;
   defaultCollapsed?: boolean;
   hideTitle?: boolean;
+  keepAlive?: boolean;
   order?: number;
   size?: number;
 }
@@ -106,6 +107,7 @@ interface FolderNode {
   defaultActive: boolean;
   defaultCollapsed: boolean;
   hideTitle: boolean;
+  keepAlive: boolean;
   order: number;
   size?: number;
   folders: FolderNode[];
@@ -306,6 +308,7 @@ const styles = {
     minWidth: 0,
     overflow: 'auto',
     '&[data-fill="true"]': { overflow: 'hidden' },
+    '&[hidden]': { display: 'none' },
   }),
   nav: css({
     background: t.color.bg,
@@ -372,7 +375,7 @@ const styles = {
     '&[data-state="active"]': { color: t.color.fg, background: t.color.bgSoft },
   }),
   tabbarActions: css({ padding: '4px 6px', borderBottom: `1px solid ${t.color.border}` }),
-  tabPanel: css({ flex: '1 1 auto', minHeight: 0, overflow: 'auto' }),
+  tabPanel: css({ flex: '1 1 auto', minHeight: 0, overflow: 'auto', '&[hidden]': { display: 'none' } }),
   dropdown: css({ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }),
   dropdownBar: css({ display: 'flex', alignItems: 'center', gap: 6, padding: 6, borderBottom: `1px solid ${t.color.border}` }),
   dropdownTrigger: css({
@@ -390,7 +393,7 @@ const styles = {
   dropdownMenu: css({ zIndex: 90, minWidth: 180, border: `1px solid ${t.color.border}`, borderRadius: t.radius.md, background: t.color.bg, padding: 4, boxShadow: '0 14px 32px rgba(17, 17, 19, 0.14)' }),
   dropdownItem: css({ minHeight: 28, display: 'flex', alignItems: 'center', gap: 7, padding: '0 7px', borderRadius: t.radius.sm, outline: 'none', '&[data-highlighted]': { background: t.color.bgHover } }),
   dropdownActions: css({ marginLeft: 'auto' }),
-  dropdownPanel: css({ flex: '1 1 auto', minHeight: 0, overflow: 'auto', '&[data-fill="true"]': { overflow: 'hidden' } }),
+  dropdownPanel: css({ flex: '1 1 auto', minHeight: 0, overflow: 'auto', '&[data-fill="true"]': { overflow: 'hidden' }, '&[hidden]': { display: 'none' } }),
   accordion: css({ minHeight: 0, overflow: 'auto' }),
   accordionItem: css({ borderBottom: `1px solid ${t.color.border}` }),
   accordionHeading: css({ display: 'flex', alignItems: 'center', paddingRight: 6 }),
@@ -598,6 +601,7 @@ function createFolderNode(segment: FolderSegment, key: string): FolderNode {
     defaultActive: segment.defaultActive ?? false,
     defaultCollapsed: segment.defaultCollapsed ?? false,
     hideTitle: segment.hideTitle ?? false,
+    keepAlive: segment.keepAlive ?? false,
     order: segment.order ?? Number.POSITIVE_INFINITY,
     size: segment.size,
     folders: [],
@@ -616,6 +620,7 @@ function mergeFolderNode(node: FolderNode, segment: FolderSegment): FolderNode {
     defaultActive: segment.defaultActive ?? node.defaultActive,
     defaultCollapsed: segment.defaultCollapsed ?? node.defaultCollapsed,
     hideTitle: segment.hideTitle ?? node.hideTitle,
+    keepAlive: segment.keepAlive ?? node.keepAlive,
     order: segment.order ?? node.order,
     size: segment.size ?? node.size,
   };
@@ -839,14 +844,27 @@ function NavArrangement({
       onValueChange={setActive}
     >
       {placement !== 'bottom' && list}
-      <Tabs.Content
-        className={styles.navContent}
-        data-fill={activeFolder && folderHasFill(activeFolder) ? 'true' : 'false'}
-        forceMount
-        value={activeFolder?.key ?? ''}
-      >
-        {activeFolder && <FolderRenderer node={activeFolder} parentKey={node.key} isRoot />}
-      </Tabs.Content>
+      {node.keepAlive ? folders.map((folder) => (
+        <Tabs.Content
+          className={styles.navContent}
+          data-fill={folderHasFill(folder) ? 'true' : 'false'}
+          forceMount
+          hidden={folder.key !== activeFolder?.key}
+          key={folder.key}
+          value={folder.key}
+        >
+          <FolderRenderer node={folder} parentKey={node.key} isRoot />
+        </Tabs.Content>
+      )) : (
+        <Tabs.Content
+          className={styles.navContent}
+          data-fill={activeFolder && folderHasFill(activeFolder) ? 'true' : 'false'}
+          forceMount
+          value={activeFolder?.key ?? ''}
+        >
+          {activeFolder && <FolderRenderer node={activeFolder} parentKey={node.key} isRoot />}
+        </Tabs.Content>
+      )}
       {placement === 'bottom' && list}
     </Tabs.Root>
   );
@@ -928,9 +946,21 @@ function TabsArrangement({ node }: { node: FolderNode }) {
           <FolderActionButtons actions={activeFolder.actions} />
         </div>
       )}
-      <Tabs.Content className={styles.tabPanel} forceMount value={activeFolder?.key ?? ''}>
-        {activeFolder && <FolderBody node={activeFolder} />}
-      </Tabs.Content>
+      {node.keepAlive ? folders.map((item) => (
+        <Tabs.Content
+          className={styles.tabPanel}
+          forceMount
+          hidden={item.key !== activeItem?.key}
+          key={item.key}
+          value={item.key}
+        >
+          <FolderBody node={item.node} />
+        </Tabs.Content>
+      )) : (
+        <Tabs.Content className={styles.tabPanel} forceMount value={activeFolder?.key ?? ''}>
+          {activeFolder && <FolderBody node={activeFolder} />}
+        </Tabs.Content>
+      )}
     </Tabs.Root>
   );
 }
@@ -985,9 +1015,20 @@ function DropdownArrangement({ node }: { node: FolderNode }) {
           {activeFolder ? <FolderActionButtons actions={activeFolder.actions} /> : null}
         </div>
       </div>
-      <div className={styles.dropdownPanel} data-fill={activeFolder && folderHasFill(activeFolder) ? 'true' : 'false'}>
-        {activeFolder ? <FolderBody node={activeFolder} /> : null}
-      </div>
+      {node.keepAlive ? folders.map((item) => (
+        <div
+          className={styles.dropdownPanel}
+          data-fill={folderHasFill(item.node) ? 'true' : 'false'}
+          hidden={item.key !== activeItem?.key}
+          key={item.key}
+        >
+          <FolderBody node={item.node} />
+        </div>
+      )) : (
+        <div className={styles.dropdownPanel} data-fill={activeFolder && folderHasFill(activeFolder) ? 'true' : 'false'}>
+          {activeFolder ? <FolderBody node={activeFolder} /> : null}
+        </div>
+      )}
     </div>
   );
 }

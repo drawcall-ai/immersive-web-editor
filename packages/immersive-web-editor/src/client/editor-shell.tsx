@@ -203,7 +203,7 @@ function folderSegment(
   prefix: string,
   actions?: FolderSegment['actions'],
   arrangement: FolderSegment['arrangement'] = 'stack',
-  options?: Partial<Pick<FolderSegment, 'defaultActive' | 'defaultCollapsed' | 'hideTitle' | 'icon' | 'order' | 'size'>>,
+  options?: Partial<Pick<FolderSegment, 'defaultActive' | 'defaultCollapsed' | 'hideTitle' | 'icon' | 'keepAlive' | 'order' | 'size'>>,
 ): FolderSegment {
   const icon = options && 'icon' in options ? options.icon : folderIcon(String(title), prefix);
   return {
@@ -247,6 +247,7 @@ function folderPathSegment(segment: EditorFolderPathSegment): FolderSegment {
     defaultActive: segment.defaultActive,
     defaultCollapsed: segment.defaultCollapsed,
     hideTitle: segment.hideTitle,
+    keepAlive: segment.keepAlive,
     order: segment.order,
     size: segment.size,
   };

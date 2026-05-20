@@ -39,6 +39,7 @@ export interface EditorFolderPathSegment {
   defaultActive?: boolean;
   defaultCollapsed?: boolean;
   hideTitle?: boolean;
+  keepAlive?: boolean;
   order?: number;
   size?: number;
 }
