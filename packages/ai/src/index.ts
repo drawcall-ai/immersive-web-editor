@@ -112,6 +112,15 @@ class OpencodeBackend {
     this.proc.stderr.on('data', (chunk) => {
       stderr += String(chunk);
     });
+    const spawnError = new Promise<never>((_, reject) => {
+      this.proc?.once('error', (err) => {
+        this.status = {
+          state: 'error',
+          message: `Failed to start OpenCode with "${this.options.command}": ${(err as Error).message}`,
+        };
+        reject(err);
+      });
+    });
     this.proc.once('exit', (code, signal) => {
       if (this.status.state !== 'ready') {
         this.status = {
@@ -122,7 +131,7 @@ class OpencodeBackend {
     });
 
     try {
-      await this.waitForReady();
+      await Promise.race([this.waitForReady(), spawnError]);
       this.status = { state: 'ready' };
     } catch (err) {
       this.status = {
@@ -158,6 +167,7 @@ function resolveOpencodeCommand(root: string, command?: string): string {
   const candidates = [
     resolve(root, 'node_modules', '.bin', bin),
     resolve(process.cwd(), 'node_modules', '.bin', bin),
+    resolve(here, '..', 'node_modules', '.bin', bin),
   ];
   return candidates.find((candidate) => existsSync(candidate)) ?? bin;
 }

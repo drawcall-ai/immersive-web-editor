@@ -1,5 +1,5 @@
-import { defineConfig } from 'vite';
 import editorPlugin, { type EditorFolderPath, type EditorSlotPath } from 'immersive-web-editor';
+import { ai } from '@immersive-web-editor/ai';
 
 const previewPath = [
   { id: 'editor-root', title: 'Editor', arrangement: 'dock-row' },
@@ -13,13 +13,23 @@ const overlayPath = [
 ] as const satisfies EditorSlotPath;
 const configPath = [
   { id: 'editor-root', title: 'Editor', arrangement: 'dock-row' },
-  { id: 'editor-config', title: 'Config', arrangement: 'accordion', hideTitle: true, order: 30, size: 24 },
+  { id: 'editor-side', title: 'Tools', arrangement: 'nav-top-icons', hideTitle: true, order: 30, size: 24 },
+  { id: 'editor-config', title: 'Config', arrangement: 'accordion', defaultActive: true },
+] as const satisfies EditorFolderPath;
+const aiPath = [
+  { id: 'editor-root', title: 'Editor', arrangement: 'dock-row' },
+  { id: 'editor-side', title: 'Tools', arrangement: 'nav-top-icons', hideTitle: true, order: 30, size: 24 },
+  { id: 'editor-chat', title: 'AI', arrangement: 'dropdown' },
 ] as const satisfies EditorFolderPath;
 
-export default defineConfig({
+export default {
   plugins: [editorPlugin({
     previewPath,
     overlayPath,
     configPath,
+    plugins: [ai({ path: aiPath })],
   })],
-});
+  optimizeDeps: {
+    exclude: ['@react-three/start'],
+  },
+};

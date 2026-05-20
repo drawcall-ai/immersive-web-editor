@@ -301,7 +301,12 @@ const styles = {
     '&[data-placement="top"]': { gridTemplateRows: 'auto minmax(0, 1fr)' },
     '&[data-placement="bottom"]': { gridTemplateRows: 'minmax(0, 1fr) auto' },
   }),
-  navContent: css({ minHeight: 0, minWidth: 0, overflow: 'hidden' }),
+  navContent: css({
+    minHeight: 0,
+    minWidth: 0,
+    overflow: 'auto',
+    '&[data-fill="true"]': { overflow: 'hidden' },
+  }),
   nav: css({
     background: t.color.bg,
     display: 'flex',
@@ -315,6 +320,7 @@ const styles = {
     },
     '&[data-placement="left"][data-icons-only="true"]': { width: 72, alignItems: 'center', gap: 9, overflow: 'visible' },
     '&[data-placement="top"]': { borderBottom: `1px solid ${t.color.border}`, alignItems: 'center' },
+    '&[data-placement="top"][data-icons-only="true"]': { justifyContent: 'center', gap: 10, padding: '8px 10px', overflow: 'visible' },
     '&[data-placement="bottom"]': { borderTop: `1px solid ${t.color.border}`, alignItems: 'center' },
   }),
   navItem: css({
@@ -327,6 +333,8 @@ const styles = {
     minWidth: 0,
     '&:hover': { background: t.color.bgHover, color: t.color.fg },
     '&[data-active="true"]': { color: t.color.accent },
+    '&[data-icons-only="true"]': { gridTemplateColumns: 'auto', minWidth: 'auto' },
+    '&[data-icons-only="true"][data-active="true"]': { background: t.color.bgSoft },
   }),
   navTrigger: css({
     minWidth: 0,
@@ -342,6 +350,10 @@ const styles = {
     cursor: 'pointer',
     textAlign: 'left',
     '&:focus-visible': { outline: `2px solid ${t.color.borderStrong}`, outlineOffset: 1 },
+    '&[data-icons-only="true"]': { justifyContent: 'center', gap: 0, width: 38, height: 38, padding: 0 },
+    '&[data-icons-only="true"][data-placement="top"]': { width: 44, height: 44 },
+    '&[data-icons-only="true"] [data-nav-icon="true"]': { width: 26, minWidth: 26, height: 26 },
+    '&[data-icons-only="true"] [data-nav-icon="true"] svg': { width: 22, height: 22, strokeWidth: 2 },
   }),
   navLabel: css({ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }),
   navItemActions: css({ display: 'flex', alignItems: 'center' }),
@@ -827,7 +839,12 @@ function NavArrangement({
       onValueChange={setActive}
     >
       {placement !== 'bottom' && list}
-      <Tabs.Content className={styles.navContent} forceMount value={activeFolder?.key ?? ''}>
+      <Tabs.Content
+        className={styles.navContent}
+        data-fill={activeFolder && folderHasFill(activeFolder) ? 'true' : 'false'}
+        forceMount
+        value={activeFolder?.key ?? ''}
+      >
         {activeFolder && <FolderRenderer node={activeFolder} parentKey={node.key} isRoot />}
       </Tabs.Content>
       {placement === 'bottom' && list}
@@ -851,15 +868,17 @@ function NavItem({
       aria-label={iconsOnly ? folder.title : undefined}
       className={styles.navTrigger}
       data-active={active}
+      data-icons-only={iconsOnly}
+      data-placement={placement}
       value={folder.key}
     >
-      <span className={styles.folderIcon}>{folder.icon}</span>
-      <span className={styles.navLabel}>{folder.title}</span>
+      <span className={styles.folderIcon} data-nav-icon={iconsOnly ? 'true' : undefined}>{folder.icon}</span>
+      {!iconsOnly && <span className={styles.navLabel}>{folder.title}</span>}
     </Tabs.Trigger>
   );
 
   return (
-    <div className={styles.navItem} data-active={active} data-icons-only={iconsOnly}>
+    <div className={styles.navItem} data-active={active} data-icons-only={iconsOnly} data-placement={placement}>
       {iconsOnly ? (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>{trigger}</Tooltip.Trigger>

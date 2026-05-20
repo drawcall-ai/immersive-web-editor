@@ -9,6 +9,7 @@
     "preview": "react-three-start preview"
   },
   "dependencies": {
+    "@immersive-web-editor/ai": "workspace:*",
     "@react-three/fiber": "^9.6.1",
     "@react-three/start": "^0.1.4",
     "immersive-web-editor": "workspace:*",

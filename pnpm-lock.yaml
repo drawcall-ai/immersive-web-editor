@@ -57,6 +57,9 @@ importers:
 
   examples/react-three-start:
     dependencies:
+      '@immersive-web-editor/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@react-three/fiber':
         specifier: ^9.6.1
         version: 9.6.1(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(three@0.184.0)
