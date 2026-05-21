@@ -126,6 +126,7 @@ type AiStatus = { state: 'disabled' | 'starting' | 'ready' | 'error'; message?: 
 export interface AiClientOptions {
   opencodeBaseUrl?: string;
   statusUrl?: string;
+  autoConnect?: boolean;
 }
 const DEFAULT_AI_CLIENT_OPTIONS: AiClientOptions = {};
 type AttachedFile = FilePartInput & { localID: string };
@@ -288,18 +289,24 @@ export function Panel({ editor, options = DEFAULT_AI_CLIENT_OPTIONS }: { editor:
   const queryClient = useQueryClient();
   const registeredSlotsRef = useRef(new Set<string>());
   const creatingSessionRef = useRef(false);
+  const [enabled, setEnabled] = useState(options.autoConnect ?? true);
   const [creatingSession, setCreatingSession] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  useEffect(() => {
+    setEnabled(options.autoConnect ?? true);
+  }, [options.autoConnect]);
+
   const sessionsQuery = useQuery({
     queryKey: queryKeys.sessions,
+    enabled,
     queryFn: async () => {
       const res = await client.session.list({ roots: true, limit: 80 });
       return sortSessions((res.data ?? []) as Session[]);
     },
   });
 
-  const sessions = sessionsQuery.data ?? [];
+  const sessions = enabled ? sessionsQuery.data ?? [] : [];
 
   const createSessionMutation = useMutation({
     mutationFn: async () => {
@@ -325,11 +332,34 @@ export function Panel({ editor, options = DEFAULT_AI_CLIENT_OPTIONS }: { editor:
   }, [createSessionMutation]);
 
   useEffect(() => {
+    if (!enabled) return;
     if (sessionsQuery.isLoading || sessions.length > 0 || createSessionMutation.isPending || creatingSessionRef.current) return;
     newChat();
-  }, [createSessionMutation.isPending, newChat, sessions.length, sessionsQuery.isLoading]);
+  }, [createSessionMutation.isPending, enabled, newChat, sessions.length, sessionsQuery.isLoading]);
 
   useEffect(() => {
+    if (!enabled) {
+      editor.addField({
+        id: CHAT_LOADING_SLOT_ID,
+        title: 'Chat',
+        actions: [
+          {
+            id: 'connect',
+            label: 'Connect',
+            icon: Bot,
+            run: () => setEnabled(true),
+          },
+        ],
+        mount(container) {
+          const root = createRoot(container);
+          root.render(<ChatIdlePanel />);
+          return () => queueMicrotask(() => root.unmount());
+        },
+      });
+
+      return () => editor.removeField(CHAT_LOADING_SLOT_ID);
+    }
+
     if (sessions.length > 0) {
       editor.removeField(CHAT_LOADING_SLOT_ID);
       return undefined;
@@ -355,9 +385,11 @@ export function Panel({ editor, options = DEFAULT_AI_CLIENT_OPTIONS }: { editor:
     });
 
     return () => editor.removeField(CHAT_LOADING_SLOT_ID);
-  }, [creatingSession, editor, newChat, sessions.length]);
+  }, [creatingSession, editor, enabled, newChat, sessions.length]);
 
   useEffect(() => {
+    if (!enabled) return undefined;
+
     const nextSlotIds = new Set<string>();
     for (const session of sessions) {
       const slotID = `editor:chat:session:${session.id}`;
@@ -403,7 +435,7 @@ export function Panel({ editor, options = DEFAULT_AI_CLIENT_OPTIONS }: { editor:
     registeredSlotsRef.current = nextSlotIds;
 
     return undefined;
-  }, [client, creatingSession, editor, newChat, queryClient, sessions]);
+  }, [client, creatingSession, editor, enabled, newChat, options, queryClient, sessions]);
 
   useEffect(() => () => {
     for (const id of registeredSlotsRef.current) editor.removeField(id);
@@ -411,6 +443,35 @@ export function Panel({ editor, options = DEFAULT_AI_CLIENT_OPTIONS }: { editor:
   }, [editor]);
 
   return err ? <div className="dc-controller-error">{err}</div> : null;
+}
+
+function ChatIdlePanel() {
+  return (
+    <div className={`dc-root dc-root-slot dc-ui ${panelStyles.root}`}>
+      <main className="dc-chat">
+        <div className="dc-messages">
+          <div className="dc-empty-state">
+            <Bot size={18} />
+          </div>
+        </div>
+        <div className="dc-composer-panel">
+          <div className="dc-composer">
+            <textarea placeholder="Connect chat to start..." rows={2} disabled />
+            <div className="dc-composer-toolbar">
+              <IconButton title="Attach files" disabled>
+                <ImagePlus size={15} />
+              </IconButton>
+              <ModelSelect value={modelValue(DEFAULT_MODEL_PROVIDER, DEFAULT_MODEL_ID)} onChange={() => undefined} models={[]} />
+              <button className="dc-send" disabled>
+                <Send size={14} />
+                <span>Send</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
 }
 
 function ChatLoadingPanel() {
