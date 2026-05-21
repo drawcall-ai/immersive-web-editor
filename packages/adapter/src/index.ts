@@ -22,6 +22,8 @@ export interface PreviewCanvasViewport {
 }
 export type ReceivedEditorCamera = { submit(): void; dispose(): void };
 export type PublishedPreviewCanvasViewport = { submit(): void; dispose(): void };
+export type PreviewViewport = PreviewCanvasViewport;
+export type PublishedPreviewViewport = PublishedPreviewCanvasViewport;
 
 export interface EditorOriginOptions {
   editorOrigin?: string;
@@ -130,6 +132,9 @@ export function receivePreviewCanvasViewport(target: Window, accept: (viewport: 
   window.addEventListener('message', listener);
   return () => window.removeEventListener('message', listener);
 }
+
+export const publishPreviewViewport = publishPreviewCanvasViewport;
+export const receivePreviewViewport = receivePreviewCanvasViewport;
 
 function safePostMessage(target: Window | null | undefined, message: unknown, targetOrigin: string): void {
   try {
