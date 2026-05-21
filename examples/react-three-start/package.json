@@ -12,7 +12,7 @@
     "@immersive-web-editor/adapter": "workspace:*",
     "@immersive-web-editor/ai": "workspace:*",
     "@react-three/fiber": "^9.6.1",
-    "@react-three/start": "^0.1.5",
+    "@react-three/start": "^0.1.6",
     "immersive-web-editor": "workspace:*",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
