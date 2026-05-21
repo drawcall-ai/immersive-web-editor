@@ -479,7 +479,7 @@ function PreviewSlots({
           <iframe
             ref={setFrame}
             className={styles.iframe}
-            src={previewUrlWithEditorOrigin(src)}
+            src={src}
             tabIndex={-1}
             title="Preview"
           />
@@ -677,16 +677,6 @@ function originFromUrl(url: string): string {
     return new URL(url, window.location.href).origin;
   } catch {
     return window.location.origin;
-  }
-}
-
-function previewUrlWithEditorOrigin(url: string): string {
-  try {
-    const previewUrl = new URL(url, window.location.href);
-    previewUrl.searchParams.set('__editorOrigin', window.location.origin);
-    return previewUrl.href;
-  } catch {
-    return url;
   }
 }
 

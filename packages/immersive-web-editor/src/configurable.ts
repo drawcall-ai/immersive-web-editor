@@ -209,8 +209,6 @@ function sendToEditor(message: PreviewToEditorMessage): void {
 }
 
 function editorOrigin(): string {
-  const fromQuery = new URLSearchParams(window.location.search).get('__editorOrigin');
-  if (fromQuery) return fromQuery;
   if (document.referrer) {
     try {
       return new URL(document.referrer).origin;

@@ -141,8 +141,6 @@ function safePostMessage(target: Window | null | undefined, message: unknown, ta
 }
 
 function parentEditorOrigin(): string {
-  const fromQuery = new URLSearchParams(location.search).get('__editorOrigin');
-  if (fromQuery) return fromQuery;
   if (document.referrer) {
     try {
       return new URL(document.referrer).origin;
