@@ -88,6 +88,18 @@ test('react-three-start example renders the editor without splitting the 3D runt
     await expect(preview.locator('canvas')).toHaveCount(1);
     await expect(page.locator('canvas')).toHaveCount(1);
 
+    await page.waitForTimeout(500);
+    const previewBeforeDrag = await preview.locator('canvas').screenshot();
+    const overlayCanvasBox = await page.locator('canvas').boundingBox();
+    expect(overlayCanvasBox).not.toBeNull();
+    await page.mouse.move(overlayCanvasBox!.x + overlayCanvasBox!.width / 2, overlayCanvasBox!.y + overlayCanvasBox!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(overlayCanvasBox!.x + overlayCanvasBox!.width / 2 + 300, overlayCanvasBox!.y + overlayCanvasBox!.height / 2 - 150, { steps: 30 });
+    await page.mouse.up();
+    await page.waitForTimeout(500);
+    const previewAfterDrag = await preview.locator('canvas').screenshot();
+    expect(countBufferDiffs(previewBeforeDrag, previewAfterDrag)).toBeGreaterThan(1000);
+
     expect(pageErrors).not.toContainEqual(expect.stringContaining('Hooks can only be used within the Canvas component'));
     expect(consoleErrors).not.toContainEqual(expect.stringContaining('Hooks can only be used within the Canvas component'));
   } finally {
@@ -135,6 +147,15 @@ async function expectEditorCanEdit(page: Page, editorUrl: string, nextTitle: str
 
   await expect(titleInput).toHaveValue(nextTitle);
   await expect(preview.getByRole('heading', { name: nextTitle })).toBeVisible();
+}
+
+function countBufferDiffs(left: Buffer, right: Buffer): number {
+  const length = Math.min(left.length, right.length);
+  let diffs = Math.abs(left.length - right.length);
+  for (let index = 0; index < length; index += 1) {
+    if (left[index] !== right[index]) diffs += 1;
+  }
+  return diffs;
 }
 
 async function startViteApp(): Promise<{ origin: string; stop(): Promise<void> }> {
