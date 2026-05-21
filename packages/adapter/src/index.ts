@@ -59,7 +59,6 @@ export function receiveEditorCamera(target: Window, camera: () => EditorCameraIn
     if (event.origin === targetOrigin && event.source === target && isMessage(event.data, 'editor-camera:ready')) submit();
   };
   window.addEventListener('message', listener);
-  submit();
   return { submit, dispose: () => window.removeEventListener('message', listener) };
 }
 
@@ -125,7 +124,6 @@ export function receivePreviewCanvasViewport(target: Window, accept: (viewport: 
     accept(event.data);
   };
   window.addEventListener('message', listener);
-  safePostMessage(target, { source: SOURCE, type: 'preview-canvas-viewport:ready' }, targetOrigin);
   return () => window.removeEventListener('message', listener);
 }
 
