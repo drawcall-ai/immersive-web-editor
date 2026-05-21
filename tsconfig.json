@@ -1,10 +1,10 @@
 {
   "files": [],
   "references": [
-    { "path": "./packages/immersive-web-editor" },
-    { "path": "./packages/adapter" },
-    { "path": "./packages/ui" },
-    { "path": "./packages/ai" },
+    { "path": "./packages/editor" },
+    { "path": "./packages/preview-adapter" },
+    { "path": "./packages/editor-layout" },
+    { "path": "./packages/ai-chat" },
     { "path": "./examples/editor-layout" }
   ]
 }

@@ -1,0 +1,43 @@
+declare module 'virtual:editor/config' {
+  import type { CommandOptions } from './ui/sdk';
+  import type { EditorFolderPath, EditorSlotPath } from './plugin/options';
+
+  export interface EditorPluginApi {
+    addField(opts: {
+      id: string;
+      title: string;
+      actions?: Array<{
+        id: string;
+        label: string;
+        icon?: unknown;
+        disabled?: boolean;
+        run: () => void | Promise<void>;
+      }>;
+      mount: (container: HTMLElement) => (() => void) | void;
+    }): () => void;
+    removeField(id: string): void;
+    addFieldComponent(name: string, component: import('./ui/sdk').FieldDescriptor['component']): () => void;
+    removeFieldComponent(name: string): void;
+    addCommand(opts: CommandOptions): () => void;
+    removeCommand(id: string): void;
+  }
+
+  export const previewUrl: string | undefined;
+  export const previewPath: EditorSlotPath;
+  export const overlayPath: EditorSlotPath;
+  export const fieldsPath: EditorFolderPath;
+  export const pluginModules: Array<{
+    name: string;
+    path?: EditorFolderPath;
+    module: {
+      activate?: (editor: EditorPluginApi) => void | (() => void);
+    };
+  }>;
+  export const pluginCommands: Array<{
+    id: string;
+    title: string;
+    hint?: string;
+    keybinding?: string;
+    scope?: string;
+  }>;
+}

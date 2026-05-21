@@ -10,24 +10,25 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const appRoot = resolve(repoRoot, 'e2e/fixtures/vite-app');
 const appFile = resolve(appRoot, 'src/main.ts');
-const reactExampleRoot = resolve(repoRoot, 'examples/vite-react-ai');
-const reactExampleFile = resolve(reactExampleRoot, 'src/App.tsx');
-const staticEditorRoot = resolve(repoRoot, 'packages/immersive-web-editor/src/editor');
+const aiChatExampleRoot = resolve(repoRoot, 'examples/ai-chat');
+const aiChatExampleFile = resolve(aiChatExampleRoot, 'src/App.tsx');
+const reactThreeStartExampleRoot = resolve(repoRoot, 'examples/react-three-start');
+const staticEditorRoot = resolve(repoRoot, 'packages/editor/src/editor');
 const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 
 let originalAppSource = '';
-let originalReactExampleSource = '';
+let originalAiChatExampleSource = '';
 
 test.describe.configure({ mode: 'serial' });
 
 test.beforeAll(() => {
   originalAppSource = readFileSync(appFile, 'utf8');
-  originalReactExampleSource = readFileSync(reactExampleFile, 'utf8');
+  originalAiChatExampleSource = readFileSync(aiChatExampleFile, 'utf8');
 });
 
 test.afterEach(() => {
   writeFileSync(appFile, originalAppSource);
-  writeFileSync(reactExampleFile, originalReactExampleSource);
+  writeFileSync(aiChatExampleFile, originalAiChatExampleSource);
 });
 
 test('Vite serves the live editor and live app together', async ({ page }) => {
@@ -40,7 +41,7 @@ test('Vite serves the live editor and live app together', async ({ page }) => {
 });
 
 test('live editor removes stale config fields after client HMR', async ({ page }) => {
-  const app = await startReactExample();
+  const app = await startAiChatExample();
   try {
     await page.goto(`${app.origin}/editor`);
 
@@ -51,10 +52,13 @@ test('live editor removes stale config fields after client HMR', async ({ page }
     const newSlot = page.locator('[data-editor-slot-path="Fields/Scene/name"]');
     await expect(oldSlot).toBeVisible();
     await expect(newSlot).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'calm' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'alert' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'hostile' })).toBeVisible();
 
     writeFileSync(
-      reactExampleFile,
-      originalReactExampleSource
+      aiChatExampleFile,
+      originalAiChatExampleSource
         .replace('title: val("Hello World")', 'name: val("Hello World")')
         .replace('<h1>{scene.title}</h1>', '<h1>{scene.name}</h1>'),
     );
@@ -62,6 +66,30 @@ test('live editor removes stale config fields after client HMR', async ({ page }
     await expect(newSlot).toBeVisible();
     await expect(oldSlot).toHaveCount(0);
     await expect(preview.getByRole('heading', { name: 'Hello World' })).toBeVisible();
+  } finally {
+    await app.stop();
+  }
+});
+
+test('react-three-start example renders the editor without splitting the 3D runtime', async ({ page }) => {
+  const app = await startReactThreeStartExample();
+  const pageErrors: string[] = [];
+  const consoleErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
+
+  try {
+    await page.goto(`${app.origin}/editor`);
+
+    const preview = page.frameLocator('iframe[title="Preview"]');
+    await expect(page.getByText('HUD Label')).toBeVisible();
+    await expect(preview.locator('canvas')).toHaveCount(1);
+    await expect(page.locator('canvas')).toHaveCount(1);
+
+    expect(pageErrors).not.toContainEqual(expect.stringContaining('Hooks can only be used within the Canvas component'));
+    expect(consoleErrors).not.toContainEqual(expect.stringContaining('Hooks can only be used within the Canvas component'));
   } finally {
     await app.stop();
   }
@@ -120,9 +148,20 @@ async function startViteApp(): Promise<{ origin: string; stop(): Promise<void> }
   };
 }
 
-async function startReactExample(): Promise<{ origin: string; stop(): Promise<void> }> {
+async function startAiChatExample(): Promise<{ origin: string; stop(): Promise<void> }> {
   const port = await getFreePort();
-  const child = spawnProcess(pnpm, ['exec', 'vite', '--host', '127.0.0.1', '--port', String(port), '--strictPort'], reactExampleRoot);
+  const child = spawnProcess(pnpm, ['exec', 'vite', '--host', '127.0.0.1', '--port', String(port), '--strictPort'], aiChatExampleRoot);
+  const origin = `http://127.0.0.1:${port}`;
+  await waitForHttp(origin, child);
+  return {
+    origin,
+    stop: () => stopProcess(child),
+  };
+}
+
+async function startReactThreeStartExample(): Promise<{ origin: string; stop(): Promise<void> }> {
+  const port = await getFreePort();
+  const child = spawnProcess(pnpm, ['exec', 'react-three-start', 'dev', '--host', '127.0.0.1', '--port', String(port), '--strictPort', '--force'], reactThreeStartExampleRoot);
   const origin = `http://127.0.0.1:${port}`;
   await waitForHttp(origin, child);
   return {

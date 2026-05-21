@@ -6,7 +6,7 @@ import editorPlugin from 'immersive-web-editor';
 const here = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
-  root: resolve(here, '../packages/immersive-web-editor/src/editor'),
+  root: resolve(here, '../packages/editor/src/editor'),
   plugins: [
     editorPlugin({
       build: {

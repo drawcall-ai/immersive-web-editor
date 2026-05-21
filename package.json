@@ -6,19 +6,20 @@
   "packageManager": "pnpm@10.18.0",
   "scripts": {
     "dev:editor": "pnpm --filter @immersive-web-editor/example-editor-layout dev",
-    "dev:example": "pnpm --filter @immersive-web-editor/example-vite-react-ai dev",
+    "dev:example": "pnpm --filter @immersive-web-editor/example-ai-chat dev",
     "dev:react-three-start": "pnpm --filter @immersive-web-editor/example-react-three-start dev",
     "dev:transform-handles": "pnpm --filter @immersive-web-editor/example-transform-handles dev",
     "build": "pnpm -r --filter './packages/*' build",
-    "check:package": "node scripts/check-editor-package.mjs",
+    "check:package": "tsx scripts/check-editor-package.ts",
     "test:e2e": "playwright test",
-    "typecheck": "tsc -b",
+    "typecheck": "pnpm build && tsc -b",
     "publish:packages": "pnpm -r --filter './packages/*' --access public publish --no-git-checks"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "tsx": "^4.22.3",
     "typescript": "^5.6.0",
     "vite": "^8.0.13"
   }

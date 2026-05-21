@@ -2,7 +2,7 @@ import { color, config, number, transform3D, val } from 'immersive-web-editor';
 
 const cubeTransform = config(
   'Cube Transform',
-  val({"position":[0,0,0],"rotation":[0,0,0],"scale":[1.4,3.79,1.4]}, transform3D()),
+  val({"position":[0,-0.45,0],"rotation":[0,0,0],"scale":[1.4,3.79,1.4]}, transform3D()),
 );
 
 const cubeColor = config('Cube Color', val("#ff0000", color()));
