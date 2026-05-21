@@ -40,5 +40,8 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Test adapter package
+        run: pnpm --filter @immersive-web-editor/adapter test
+
       - name: Test AI package
         run: pnpm --filter @immersive-web-editor/ai test

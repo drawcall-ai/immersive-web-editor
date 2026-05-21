@@ -46,9 +46,7 @@ export function publishEditorCamera(accept: (camera: EditorCamera) => void, opti
 
 export function receiveEditorCamera(target: Window, camera: () => EditorCameraInput, options: PreviewOriginOptions = {}): ReceivedEditorCamera {
   const targetOrigin = options.previewOrigin ?? location.origin;
-  let ready = false;
   const submit = () => {
-    if (!ready) return;
     const next = camera();
     const matrixWorld = matrix(next.matrixWorld);
     safePostMessage(target, {
@@ -61,7 +59,6 @@ export function receiveEditorCamera(target: Window, camera: () => EditorCameraIn
   };
   const listener = (event: MessageEvent<unknown>) => {
     if (event.origin !== targetOrigin || event.source !== target || !isMessage(event.data, 'editor-camera:ready')) return;
-    ready = true;
     submit();
   };
   window.addEventListener('message', listener);
