@@ -38,7 +38,7 @@ export function publishEditorCamera(accept: (camera: EditorCamera) => void, opti
     accept(editorCamera(event.data.matrixWorld, event.data.projectionMatrix));
   };
   window.addEventListener('message', listener);
-  window.parent?.postMessage({ source: SOURCE, type: 'editor-camera:ready' }, targetOrigin);
+  safePostMessage(window.parent, { source: SOURCE, type: 'editor-camera:ready' }, targetOrigin);
   return () => window.removeEventListener('message', listener);
 }
 
@@ -47,7 +47,7 @@ export function receiveEditorCamera(target: Window, camera: () => EditorCameraIn
   const submit = () => {
     const next = camera();
     const matrixWorld = matrix(next.matrixWorld);
-    target.postMessage({
+    safePostMessage(target, {
       source: SOURCE,
       type: 'editor-camera',
       matrix: matrixWorld,
@@ -80,7 +80,7 @@ export function publishPreviewCanvasViewport(previewCanvas: Element | (() => Ele
       observed = element;
     }
     const rect = element.getBoundingClientRect();
-    window.parent?.postMessage({
+    safePostMessage(window.parent, {
       source: SOURCE,
       type: 'preview-canvas-viewport',
       canvasRect: {
@@ -125,8 +125,17 @@ export function receivePreviewCanvasViewport(target: Window, accept: (viewport: 
     accept(event.data);
   };
   window.addEventListener('message', listener);
-  target.postMessage({ source: SOURCE, type: 'preview-canvas-viewport:ready' }, targetOrigin);
+  safePostMessage(target, { source: SOURCE, type: 'preview-canvas-viewport:ready' }, targetOrigin);
   return () => window.removeEventListener('message', listener);
+}
+
+function safePostMessage(target: Window | null | undefined, message: unknown, targetOrigin: string): void {
+  try {
+    target?.postMessage(message, targetOrigin);
+  } catch {
+    // Browser error documents use an opaque "null" origin. Ignore until the
+    // preview frame successfully loads the expected origin and sends ready.
+  }
 }
 
 function parentEditorOrigin(): string {

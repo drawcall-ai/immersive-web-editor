@@ -430,8 +430,13 @@ function PreviewSlots({
     };
     const detachWindowListeners = () => {
       if (!currentWindow) return;
-      currentWindow.removeEventListener('beforeunload', notifyUnload);
-      currentWindow.removeEventListener('pagehide', notifyUnload);
+      try {
+        currentWindow.removeEventListener('beforeunload', notifyUnload);
+        currentWindow.removeEventListener('pagehide', notifyUnload);
+      } catch {
+        // Cross-origin error documents expose a Window object but block access
+        // to its listener methods.
+      }
       currentWindow = null;
     };
     const onFrameLoad = () => {
@@ -439,8 +444,12 @@ function PreviewSlots({
       currentWindow = frame.contentWindow;
       unloaded = false;
       if (!currentWindow) return;
-      currentWindow.addEventListener('beforeunload', notifyUnload);
-      currentWindow.addEventListener('pagehide', notifyUnload);
+      try {
+        currentWindow.addEventListener('beforeunload', notifyUnload);
+        currentWindow.addEventListener('pagehide', notifyUnload);
+      } catch {
+        // The iframe load event is enough to replace cross-origin previews.
+      }
       setPreviewWindow(currentWindow);
       onLoad(currentWindow);
       setLoading(false);
@@ -739,7 +748,11 @@ export function EditorUi({
         title: 'Preview: reload',
         run: () => {
           const frame = document.querySelector<HTMLIFrameElement>(`iframe.${styles.iframe}`);
-          frame?.contentWindow?.location.reload();
+          try {
+            frame?.contentWindow?.location.reload();
+          } catch {
+            frame?.setAttribute('src', frame.src);
+          }
         },
       }),
       commands.register({
