@@ -209,6 +209,8 @@ function sendToEditor(message: PreviewToEditorMessage): void {
 }
 
 function editorOrigin(): string {
+  const ancestorOrigin = firstAncestorOrigin();
+  if (ancestorOrigin) return ancestorOrigin;
   if (document.referrer) {
     try {
       return new URL(document.referrer).origin;
@@ -217,6 +219,11 @@ function editorOrigin(): string {
     }
   }
   return window.location.origin;
+}
+
+function firstAncestorOrigin(): string | undefined {
+  const ancestorOrigins = (window.location as Location & { ancestorOrigins?: DOMStringList }).ancestorOrigins;
+  return ancestorOrigins?.[0] || ancestorOrigins?.item?.(0) || undefined;
 }
 
 function registerValue<T extends JsonValue>(meta: AuthoredValueMeta, value: T, field: Field<T>): void {

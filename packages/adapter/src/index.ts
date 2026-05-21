@@ -141,6 +141,8 @@ function safePostMessage(target: Window | null | undefined, message: unknown, ta
 }
 
 function parentEditorOrigin(): string {
+  const ancestorOrigin = firstAncestorOrigin();
+  if (ancestorOrigin) return ancestorOrigin;
   if (document.referrer) {
     try {
       return new URL(document.referrer).origin;
@@ -149,6 +151,11 @@ function parentEditorOrigin(): string {
     }
   }
   return location.origin;
+}
+
+function firstAncestorOrigin(): string | undefined {
+  const ancestorOrigins = (location as Location & { ancestorOrigins?: DOMStringList }).ancestorOrigins;
+  return ancestorOrigins?.[0] || ancestorOrigins?.item?.(0) || undefined;
 }
 
 function isCameraMessage(value: unknown): value is { matrixWorld: CameraMatrix; projectionMatrix: CameraMatrix } {
