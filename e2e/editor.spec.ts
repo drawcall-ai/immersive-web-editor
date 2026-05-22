@@ -52,30 +52,27 @@ const editorModes: EditorMode[] = [
 
 for (const mode of editorModes) {
   test.describe(`${mode.name} editor capabilities`, () => {
-    let app: StartedApp;
-    let editor: StartedEditor;
+    let app: StartedApp | undefined;
+    let editor: StartedEditor | undefined;
 
-    test.beforeAll(async () => {
+    test.beforeEach(async () => {
       resetAppFixture();
       await resetPublicFiles();
       app = await startViteApp();
       editor = await mode.startEditor(app);
     });
 
-    test.afterAll(async () => {
+    test.afterEach(async () => {
       await editor?.stop();
       await app?.stop();
-      resetAppFixture();
-      await resetPublicFiles();
-    });
-
-    test.beforeEach(async () => {
+      editor = undefined;
+      app = undefined;
       resetAppFixture();
       await resetPublicFiles();
     });
 
     test('edits scalar fields and syncs authored literals back to source', async ({ page }) => {
-      await openEditor(page, editor.origin);
+      await openEditor(page, editor!.origin);
       const preview = page.frameLocator('iframe[title="Preview"]');
 
       await commitTextField(page, 'Fields/Text/title', 'Edited title');
@@ -99,23 +96,27 @@ for (const mode of editorModes) {
     });
 
     test('edits vectors, nested objects, arrays, and optional values', async ({ page }) => {
-      await openEditor(page, editor.origin);
+      await openEditor(page, editor!.origin);
       const preview = page.frameLocator('iframe[title="Preview"]');
 
       await commitVectorComponent(page, 'Fields/Layout/offset', 0, '12');
       await expect(preview.getByTestId('offset')).toHaveText('12,20');
       await commitVectorComponent(page, 'Fields/Layout/offset', 1, '24');
+      await expectSourceToContain('offset: val([12,24], vec2');
+      await expect(preview.getByTestId('offset')).toHaveText('12,24');
       await commitVectorComponent(page, 'Fields/Layout/marker', 0, '4');
+      await expectSourceToContain('marker: val([4,2,3], vec3');
       await expect(preview.getByTestId('marker')).toHaveText('4,2,3');
       await commitVectorComponent(page, 'Fields/Layout/marker', 1, '5');
+      await expectSourceToContain('marker: val([4,5,3], vec3');
       await expect(preview.getByTestId('marker')).toHaveText('4,5,3');
       await commitVectorComponent(page, 'Fields/Layout/marker', 2, '6');
+      await expectSourceToContain('marker: val([4,5,6], vec3');
       await expect(preview.getByTestId('marker')).toHaveText('4,5,6');
       await commitTextField(page, 'Fields/Layout/card/label', 'Card B');
       await expect(preview.getByTestId('card')).toHaveText('Card B:2');
       await commitNumberField(page, 'Fields/Layout/card/size', '5');
 
-      await expect(preview.getByTestId('offset')).toHaveText('12,24');
       await expect(preview.getByTestId('card')).toHaveText('Card B:5');
 
       await commitTextField(page, 'Fields/Layout/tags/Tag 1/Tag 1', 'primary');
@@ -136,7 +137,7 @@ for (const mode of editorModes) {
     });
 
     test('selects and uploads public files through file fields', async ({ page }, testInfo) => {
-      await openEditor(page, editor.origin);
+      await openEditor(page, editor!.origin);
       const preview = page.frameLocator('iframe[title="Preview"]');
       const fileSlot = page.locator(slotSelector('Fields/Layout/Document file'));
       const select = fileSlot.locator('select');
@@ -158,7 +159,7 @@ for (const mode of editorModes) {
     });
 
     test('runs custom field components, plugin panels, and plugin commands', async ({ page }) => {
-      await openEditor(page, editor.origin);
+      await openEditor(page, editor!.origin);
       const preview = page.frameLocator('iframe[title="Preview"]');
 
       await page.locator(slotSelector('Fields/Text/mood')).getByRole('button', { name: 'hostile' }).click();
@@ -171,7 +172,7 @@ for (const mode of editorModes) {
     });
 
     test('replaces stale authored fields when the preview module hot updates', async ({ page }) => {
-      await openEditor(page, editor.origin);
+      await openEditor(page, editor!.origin);
       const preview = page.frameLocator('iframe[title="Preview"]');
       const oldSlot = page.locator(slotSelector('Fields/Text/title'));
       const newSlot = page.locator(slotSelector('Fields/Text/headline'));
@@ -263,17 +264,23 @@ function slotSelector(path: string): string {
   return `[data-editor-slot-path="${path}"]`;
 }
 
+async function expectSourceToContain(text: string): Promise<void> {
+  await expect.poll(() => readFileSync(appFile, 'utf8')).toContain(text);
+}
+
 async function commitTextField(page: Page, path: string, value: string): Promise<void> {
   const input = page.locator(slotSelector(path)).locator('input:not([type]), input[type="text"]').first();
   await expect(input).toBeVisible();
   await input.fill(value);
-  await input.press('Enter');
+  await expect(input).toHaveValue(value);
+  await input.blur();
 }
 
 async function commitTextArea(page: Page, path: string, value: string): Promise<void> {
   const textarea = page.locator(slotSelector(path)).locator('textarea').first();
   await expect(textarea).toBeVisible();
   await textarea.fill(value);
+  await expect(textarea).toHaveValue(value);
   await textarea.blur();
 }
 
@@ -281,7 +288,8 @@ async function commitNumberField(page: Page, path: string, value: string): Promi
   const input = page.locator(slotSelector(path)).locator('input[type="number"]').first();
   await expect(input).toBeVisible();
   await input.fill(value);
-  await input.press('Enter');
+  await expect(input).toHaveValue(value);
+  await input.blur();
 }
 
 async function commitJsonField(page: Page, path: string, value: string): Promise<void> {
@@ -295,7 +303,8 @@ async function commitVectorComponent(page: Page, path: string, index: number, va
   const inputs = page.locator(slotSelector(path)).locator('input[type="number"]');
   await expect(inputs.nth(index)).toBeVisible();
   await inputs.nth(index).fill(value);
-  await inputs.nth(index).press('Enter');
+  await expect(inputs.nth(index)).toHaveValue(value);
+  await inputs.nth(index).blur();
 }
 
 async function openCommandPalette(page: Page): Promise<void> {
