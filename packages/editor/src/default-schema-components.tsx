@@ -628,7 +628,7 @@ export const ArrayFieldComponent: EditorFieldComponent = ({
           field: itemDescriptor,
           key: index,
           value: itemValue,
-          viewPath: [...viewPath.slice(0, -1), arrayFolder, itemFolder],
+          viewPath: [...viewPath.slice(0, -1), arrayFolder, itemFolder, itemLabel],
           setValue: (nextValue) => {
             const next = current.slice();
             next[index] = nextValue;

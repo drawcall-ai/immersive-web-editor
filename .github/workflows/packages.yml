@@ -46,6 +46,12 @@ jobs:
       - name: Test AI package
         run: pnpm --filter @immersive-web-editor/ai test
 
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run editor e2e tests
+        run: pnpm test:e2e
+
       - name: Prepare packages for publishing
         run: |
           node <<'NODE'

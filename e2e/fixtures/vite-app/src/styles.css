@@ -13,9 +13,12 @@ body {
 
 .app {
   min-height: 100%;
+  box-sizing: border-box;
   display: grid;
-  place-content: center;
-  gap: 10px;
+  align-content: center;
+  justify-items: center;
+  gap: 12px;
+  padding: 32px;
 }
 
 .eyebrow {
@@ -27,4 +30,58 @@ body {
 h1 {
   margin: 0;
   font-size: 42px;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+  max-width: 560px;
+}
+
+.facts div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid #dedee4;
+  padding: 4px 0;
+}
+
+.facts dt {
+  color: #63636b;
+}
+
+.facts dd {
+  margin: 0;
+  font-weight: 650;
+}
+
+.e2e-mood-field {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.e2e-mood-field button {
+  border: 1px solid #d4d4da;
+  border-radius: 5px;
+  background: #fff;
+  color: #27272a;
+  cursor: pointer;
+  font: inherit;
+  padding: 5px 8px;
+}
+
+.e2e-mood-field button[aria-pressed="true"] {
+  border-color: #111113;
+  background: #111113;
+  color: #fff;
+}
+
+.e2e-plugin-panel {
+  display: grid;
+  min-height: 80px;
+  place-items: center;
+  color: #27272a;
 }

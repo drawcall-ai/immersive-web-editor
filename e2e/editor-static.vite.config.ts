@@ -4,6 +4,7 @@ import { dirname, resolve } from 'node:path';
 import editorPlugin from 'immersive-web-editor';
 
 const here = dirname(fileURLToPath(import.meta.url));
+const fixtureRoot = resolve(here, 'fixtures/vite-app');
 
 export default defineConfig({
   root: resolve(here, '../packages/editor/src/editor'),
@@ -13,6 +14,12 @@ export default defineConfig({
         enabled: true,
         previewUrl: process.env.E2E_PREVIEW_URL ?? '/',
       },
+      plugins: [
+        {
+          name: 'e2e-fields',
+          client: resolve(fixtureRoot, 'src/editor-plugin-client.ts'),
+        },
+      ],
     }),
   ],
 });
