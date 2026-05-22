@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import editorPlugin from 'immersive-web-editor';
+import editorPlugin from '../../../packages/editor/src/plugin/index';
 
 const here = dirname(fileURLToPath(import.meta.url));
 

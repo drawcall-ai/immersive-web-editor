@@ -79,17 +79,17 @@ for (const mode of editorModes) {
       const preview = page.frameLocator('iframe[title="Preview"]');
 
       await commitTextField(page, 'Fields/Text/title', 'Edited title');
+      await expect(preview.getByRole('heading', { name: 'Edited title' })).toBeVisible();
       await commitTextArea(page, 'Fields/Text/subtitle', 'A longer subtitle');
+      await expect(preview.getByTestId('subtitle')).toHaveText('A longer subtitle');
       await commitNumberField(page, 'Fields/Text/count', '7');
+      await expect(preview.getByTestId('count')).toHaveText('7');
       await page.locator(slotSelector('Fields/Text/enabled')).getByRole('checkbox').click();
+      await expect(preview.getByTestId('enabled')).toHaveText('no');
       await page.locator(slotSelector('Fields/Text/tint')).locator('input[type="color"]').fill('#8844cc');
+      await expect(preview.getByTestId('tint')).toHaveText('#8844cc');
       await commitJsonField(page, 'Fields/Text/metadata', '{"variant":"beta","score":4}');
 
-      await expect(preview.getByRole('heading', { name: 'Edited title' })).toBeVisible();
-      await expect(preview.getByTestId('subtitle')).toHaveText('A longer subtitle');
-      await expect(preview.getByTestId('count')).toHaveText('7');
-      await expect(preview.getByTestId('enabled')).toHaveText('no');
-      await expect(preview.getByTestId('tint')).toHaveText('#8844cc');
       await expect(preview.getByTestId('metadata')).toHaveText('beta:4');
 
       const source = readFileSync(appFile, 'utf8');
