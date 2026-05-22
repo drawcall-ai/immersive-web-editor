@@ -445,6 +445,7 @@ function PreviewSlots({
       currentWindow = null;
     };
     const onFrameLoad = () => {
+      notifyUnload();
       detachWindowListeners();
       currentWindow = frame.contentWindow;
       unloaded = false;

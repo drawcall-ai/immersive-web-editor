@@ -18,13 +18,12 @@ const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 
 const originalAppSource = readFileSync(appBaselineFile, 'utf8');
 const originalPublicFiles = new Set(readdirSync(appPublicDir));
-let staticEditorBuild: Promise<string> | null = null;
-let staticEditorOutDir: string | null = null;
+const staticEditorOutDirs: string[] = [];
 
 test.describe.configure({ mode: 'serial' });
 
 test.afterAll(async () => {
-  if (staticEditorOutDir) await rm(staticEditorOutDir, { recursive: true, force: true });
+  await Promise.all(staticEditorOutDirs.map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
 type StartedApp = { origin: string; stop(): Promise<void> };
@@ -44,7 +43,7 @@ const editorModes: EditorMode[] = [
   {
     name: 'built',
     async startEditor(app) {
-      const outDir = await ensureStaticEditorBuild();
+      const outDir = await buildStaticEditor(app.origin);
       return startStaticEditorHost(outDir, new URL(app.origin));
     },
   },
@@ -127,21 +126,31 @@ for (const mode of editorModes) {
       await expect(preview.getByTestId('card')).toHaveText('Card B:5');
     });
 
-    test('edits arrays and optional values', async ({ page }) => {
+    test('edits array items', async ({ page }) => {
       await openEditor(page, editor!.origin);
       const preview = page.frameLocator('iframe[title="Preview"]');
 
       await commitTextField(page, 'Fields/Layout/tags/Tag 1/Tag 1', 'primary');
       await expectSourceToContain('tags: val(["primary"], array');
       await expect(preview.getByTestId('tags')).toHaveText('primary');
+    });
+
+    test('adds and removes array items', async ({ page }) => {
+      await openEditor(page, editor!.origin);
+      const preview = page.frameLocator('iframe[title="Preview"]');
 
       await page.getByRole('button', { name: 'Add Tag' }).click();
-      await expectSourceToContain('tags: val(["primary","new tag"], array');
-      await expect(preview.getByTestId('tags')).toHaveText('primary,new tag');
+      await expectSourceToContain('tags: val(["alpha","new tag"], array');
+      await expect(preview.getByTestId('tags')).toHaveText('alpha,new tag');
 
       await page.getByRole('button', { name: 'Remove Tag 2' }).click();
-      await expectSourceToContain('tags: val(["primary"], array');
-      await expect(preview.getByTestId('tags')).toHaveText('primary');
+      await expectSourceToContain('tags: val(["alpha"], array');
+      await expect(preview.getByTestId('tags')).toHaveText('alpha');
+    });
+
+    test('sets, edits, and clears optional values', async ({ page }) => {
+      await openEditor(page, editor!.origin);
+      const preview = page.frameLocator('iframe[title="Preview"]');
 
       await page.locator(slotSelector('Fields/Layout/maybeNote')).getByRole('button', { name: 'Set value' }).click();
       await expectSourceToContain('maybeNote: val("draft note", optional');
@@ -365,41 +374,29 @@ async function startReactThreeStartExample(): Promise<StartedApp> {
   };
 }
 
-async function ensureStaticEditorBuild(): Promise<string> {
-  if (staticEditorBuild) return staticEditorBuild;
-  staticEditorOutDir = resolve(staticEditorRoot, `.e2e-editor-dist-${process.pid}-${Date.now()}`);
-  staticEditorBuild = (async () => {
-    await mkdir(staticEditorOutDir!, { recursive: true });
-    await runCommand(
-      pnpm,
-      ['exec', 'vite', 'build', '--config', resolve(repoRoot, 'e2e/editor-static.vite.config.ts'), '--outDir', staticEditorOutDir!, '--emptyOutDir'],
-      repoRoot,
-      { E2E_PREVIEW_URL: '/' },
-    );
-    return staticEditorOutDir!;
-  })();
-  return staticEditorBuild;
+async function buildStaticEditor(previewUrl: string): Promise<string> {
+  const outDir = resolve(staticEditorRoot, `.e2e-editor-dist-${process.pid}-${Date.now()}-${staticEditorOutDirs.length}`);
+  staticEditorOutDirs.push(outDir);
+  await mkdir(outDir, { recursive: true });
+  await runCommand(
+    pnpm,
+    ['exec', 'vite', 'build', '--config', resolve(repoRoot, 'e2e/editor-static.vite.config.ts'), '--outDir', outDir, '--emptyOutDir'],
+    repoRoot,
+    { E2E_PREVIEW_URL: previewUrl },
+  );
+  return outDir;
 }
 
-async function startStaticEditorHost(
-  staticDir: string,
-  appOrigin: URL,
-): Promise<StartedEditor> {
+async function startStaticEditorHost(staticDir: string, appOrigin: URL): Promise<StartedEditor> {
   const port = await getFreePort();
   const sockets = new Set<net.Socket>();
   const server = createServer((req, res) => {
-    void handleStaticOrProxyRequest(staticDir, appOrigin, req, res);
+    handleStaticOrApiRequest(staticDir, appOrigin, req, res);
   });
 
   server.on('connection', (socket) => {
     sockets.add(socket);
     socket.on('close', () => sockets.delete(socket));
-  });
-
-  server.on('upgrade', (req, socket, head) => {
-    sockets.add(socket);
-    socket.on('close', () => sockets.delete(socket));
-    proxyUpgrade(appOrigin, req, socket, head);
   });
 
   await listen(server, port);
@@ -413,12 +410,12 @@ async function startStaticEditorHost(
   };
 }
 
-async function handleStaticOrProxyRequest(
+function handleStaticOrApiRequest(
   staticDir: string,
   appOrigin: URL,
   req: IncomingMessage,
   res: ServerResponse,
-): Promise<void> {
+): void {
   const url = new URL(req.url ?? '/', 'http://127.0.0.1');
   const pathname = decodeURIComponent(url.pathname);
 
@@ -459,29 +456,11 @@ function proxyHttp(appOrigin: URL, req: IncomingMessage, res: ServerResponse): v
   });
 
   upstream.on('error', (err) => {
+    if (res.destroyed) return;
     res.writeHead(502, { 'content-type': 'text/plain; charset=utf-8' });
     res.end(String(err));
   });
   req.pipe(upstream);
-}
-
-function proxyUpgrade(appOrigin: URL, req: IncomingMessage, socket: net.Socket, head: Buffer): void {
-  const upstream = net.connect(Number(appOrigin.port), appOrigin.hostname, () => {
-    upstream.write(`${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`);
-    for (const [key, value] of Object.entries({ ...req.headers, host: appOrigin.host })) {
-      if (Array.isArray(value)) {
-        for (const item of value) upstream.write(`${key}: ${item}\r\n`);
-      } else if (value !== undefined) {
-        upstream.write(`${key}: ${value}\r\n`);
-      }
-    }
-    upstream.write('\r\n');
-    if (head.length > 0) upstream.write(head);
-    upstream.pipe(socket);
-    socket.pipe(upstream);
-  });
-
-  upstream.on('error', () => socket.destroy());
 }
 
 function contentType(file: string): string {
