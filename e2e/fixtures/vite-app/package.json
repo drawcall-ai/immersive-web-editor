@@ -1,0 +1,10 @@
+{
+  "name": "@immersive-web-editor/e2e-vite-app",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "immersive-web-editor": "workspace:*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

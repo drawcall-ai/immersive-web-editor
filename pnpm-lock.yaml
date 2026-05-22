@@ -27,6 +27,18 @@ importers:
         specifier: ^8.0.13
         version: 8.0.13(@types/node@22.19.19)(esbuild@0.28.0)(tsx@4.22.3)
 
+  e2e/fixtures/vite-app:
+    dependencies:
+      immersive-web-editor:
+        specifier: workspace:*
+        version: link:../../../packages/editor
+      react:
+        specifier: ^19.0.0
+        version: 19.2.6
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.6(react@19.2.6)
+
   examples/ai-chat:
     dependencies:
       '@vitejs/plugin-react':

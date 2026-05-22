@@ -110,12 +110,12 @@ for (const mode of editorModes) {
       await commitVectorComponent(page, 'Fields/Layout/marker', 1, '5');
       await expect(preview.getByTestId('marker')).toHaveText('4,5,3');
       await commitVectorComponent(page, 'Fields/Layout/marker', 2, '6');
+      await expect(preview.getByTestId('marker')).toHaveText('4,5,6');
       await commitTextField(page, 'Fields/Layout/card/label', 'Card B');
       await expect(preview.getByTestId('card')).toHaveText('Card B:2');
       await commitNumberField(page, 'Fields/Layout/card/size', '5');
 
       await expect(preview.getByTestId('offset')).toHaveText('12,24');
-      await expect(preview.getByTestId('marker')).toHaveText('4,5,6');
       await expect(preview.getByTestId('card')).toHaveText('Card B:5');
 
       await commitTextField(page, 'Fields/Layout/tags/Tag 1/Tag 1', 'primary');

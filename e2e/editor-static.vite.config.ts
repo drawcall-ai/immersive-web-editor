@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import editorPlugin from '../packages/editor/src/plugin/index';
+import editorPlugin from 'immersive-web-editor';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixtureRoot = resolve(here, 'fixtures/vite-app');
