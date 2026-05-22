@@ -95,7 +95,7 @@ for (const mode of editorModes) {
       expect(source).toContain('metadata: val({"variant":"beta","score":4}, json');
     });
 
-    test('edits vectors, nested objects, arrays, and optional values', async ({ page }) => {
+    test('edits vector fields', async ({ page }) => {
       await openEditor(page, editor!.origin);
       const preview = page.frameLocator('iframe[title="Preview"]');
 
@@ -113,26 +113,44 @@ for (const mode of editorModes) {
       await commitVectorComponent(page, 'Fields/Layout/marker', 2, '6');
       await expectSourceToContain('marker: val([4,5,6], vec3');
       await expect(preview.getByTestId('marker')).toHaveText('4,5,6');
+    });
+
+    test('edits nested object fields', async ({ page }) => {
+      await openEditor(page, editor!.origin);
+      const preview = page.frameLocator('iframe[title="Preview"]');
+
       await commitTextField(page, 'Fields/Layout/card/label', 'Card B');
+      await expectSourceToContain('card: val({"label":"Card B","size":2}, object');
       await expect(preview.getByTestId('card')).toHaveText('Card B:2');
       await commitNumberField(page, 'Fields/Layout/card/size', '5');
-
+      await expectSourceToContain('card: val({"label":"Card B","size":5}, object');
       await expect(preview.getByTestId('card')).toHaveText('Card B:5');
+    });
+
+    test('edits arrays and optional values', async ({ page }) => {
+      await openEditor(page, editor!.origin);
+      const preview = page.frameLocator('iframe[title="Preview"]');
 
       await commitTextField(page, 'Fields/Layout/tags/Tag 1/Tag 1', 'primary');
+      await expectSourceToContain('tags: val(["primary"], array');
       await expect(preview.getByTestId('tags')).toHaveText('primary');
 
       await page.getByRole('button', { name: 'Add Tag' }).click();
+      await expectSourceToContain('tags: val(["primary","new tag"], array');
       await expect(preview.getByTestId('tags')).toHaveText('primary,new tag');
 
       await page.getByRole('button', { name: 'Remove Tag 2' }).click();
+      await expectSourceToContain('tags: val(["primary"], array');
       await expect(preview.getByTestId('tags')).toHaveText('primary');
 
       await page.locator(slotSelector('Fields/Layout/maybeNote')).getByRole('button', { name: 'Set value' }).click();
+      await expectSourceToContain('maybeNote: val("draft note", optional');
       await expect(preview.getByTestId('note')).toHaveText('draft note');
       await commitTextField(page, 'Fields/Layout/maybeNote', 'ship it');
+      await expectSourceToContain('maybeNote: val("ship it", optional');
       await expect(preview.getByTestId('note')).toHaveText('ship it');
       await page.getByRole('button', { name: 'Clear' }).click();
+      await expectSourceToContain('maybeNote: val(null, optional');
       await expect(preview.getByTestId('note')).toHaveText('none');
     });
 
