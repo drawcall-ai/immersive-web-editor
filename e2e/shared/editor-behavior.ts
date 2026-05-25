@@ -33,6 +33,7 @@ export function defineFixtureFieldBehaviorTests(api: EditorBehaviorTestApi, crea
 
     test('edits scalar fields and updates the preview', async ({ page }) => {
       await harness.openEditor(page);
+      await openFieldsTab(page);
       const preview = page.frameLocator('iframe[title="Preview"]');
 
       await commitTextField(expect, page, 'Fields/Text/title', 'Edited title');
@@ -52,6 +53,7 @@ export function defineFixtureFieldBehaviorTests(api: EditorBehaviorTestApi, crea
 
     test('edits vector fields', async ({ page }) => {
       await harness.openEditor(page);
+      await openFieldsTab(page);
       const preview = page.frameLocator('iframe[title="Preview"]');
 
       await commitVectorComponent(expect, page, 'Fields/Layout/offset', 0, '12');
@@ -68,6 +70,7 @@ export function defineFixtureFieldBehaviorTests(api: EditorBehaviorTestApi, crea
 
     test('edits nested object fields', async ({ page }) => {
       await harness.openEditor(page);
+      await openFieldsTab(page);
       const preview = page.frameLocator('iframe[title="Preview"]');
 
       await commitTextField(expect, page, 'Fields/Layout/card/label', 'Card B');
@@ -78,6 +81,7 @@ export function defineFixtureFieldBehaviorTests(api: EditorBehaviorTestApi, crea
 
     test('edits array items', async ({ page }) => {
       await harness.openEditor(page);
+      await openFieldsTab(page);
       const preview = page.frameLocator('iframe[title="Preview"]');
 
       await commitTextField(expect, page, 'Fields/Layout/tags/Tag 1/Tag 1', 'primary');
@@ -86,6 +90,7 @@ export function defineFixtureFieldBehaviorTests(api: EditorBehaviorTestApi, crea
 
     test('adds and removes array items', async ({ page }) => {
       await harness.openEditor(page);
+      await openFieldsTab(page);
       const preview = page.frameLocator('iframe[title="Preview"]');
 
       await page.getByRole('button', { name: 'Add Tag' }).click();
@@ -97,6 +102,7 @@ export function defineFixtureFieldBehaviorTests(api: EditorBehaviorTestApi, crea
 
     test('sets, edits, and clears optional values', async ({ page }) => {
       await harness.openEditor(page);
+      await openFieldsTab(page);
       const preview = page.frameLocator('iframe[title="Preview"]');
 
       await page.locator(slotSelector('Fields/Layout/maybeNote')).getByRole('button', { name: 'Set value' }).click();
@@ -111,6 +117,7 @@ export function defineFixtureFieldBehaviorTests(api: EditorBehaviorTestApi, crea
       test.skip(!harness.createUploadFile, 'Harness does not support local upload files.');
 
       await harness.openEditor(page);
+      await openFieldsTab(page);
       const preview = page.frameLocator('iframe[title="Preview"]');
       const fileSlot = page.locator(slotSelector('Fields/Layout/Document file'));
       const select = fileSlot.locator('select');
@@ -127,6 +134,7 @@ export function defineFixtureFieldBehaviorTests(api: EditorBehaviorTestApi, crea
 
     test('runs custom field components, plugin panels, and plugin commands', async ({ page }) => {
       await harness.openEditor(page);
+      await openFieldsTab(page);
       const preview = page.frameLocator('iframe[title="Preview"]');
 
       await page.locator(slotSelector('Fields/Text/mood')).getByRole('button', { name: 'hostile' }).click();
@@ -140,10 +148,12 @@ export function defineFixtureFieldBehaviorTests(api: EditorBehaviorTestApi, crea
 
     test('keeps authored values after a full page reload', async ({ page }) => {
       await harness.openEditor(page);
+      await openFieldsTab(page);
 
       await commitTextField(expect, page, 'Fields/Text/title', 'Reloaded title');
 
       await page.reload();
+      await openFieldsTab(page);
       const preview = page.frameLocator('iframe[title="Preview"]');
       await expect(preview.getByRole('heading', { name: 'Reloaded title' })).toBeVisible();
       await expect(page.locator(slotSelector('Fields/Text/title')).locator('input').first()).toHaveValue('Reloaded title');
@@ -168,12 +178,14 @@ export function defineReactThreeStartBehaviorTests(api: EditorBehaviorTestApi, c
 
     test('updates the preview and survives a full page reload', async ({ page }) => {
       await harness.openEditor(page);
+      await openFieldsTab(page);
       const preview = page.frameLocator('iframe[title="Preview"]');
 
       await commitTextField(expect, page, 'Fields/HUD Label/HUD Label', 'Reload verified label');
       await expect(preview.getByText('Reload verified label')).toBeVisible();
 
       await page.reload();
+      await openFieldsTab(page);
       await expect(preview.getByText('Reload verified label')).toBeVisible();
       await expect(page.locator(slotSelector('Fields/HUD Label/HUD Label')).locator('input').first()).toHaveValue('Reload verified label');
     });
@@ -187,6 +199,7 @@ export function defineReactThreeStartBehaviorTests(api: EditorBehaviorTestApi, c
       });
 
       await harness.openEditor(page);
+      await openFieldsTab(page);
 
       const preview = page.frameLocator('iframe[title="Preview"]');
       await expect(page.getByText('HUD Label')).toBeVisible();
@@ -256,6 +269,13 @@ async function commitVectorComponent(expect: ExpectApi, page: Page, path: string
   await inputs.nth(index).fill(value);
   await expect(inputs.nth(index)).toHaveValue(value);
   await inputs.nth(index).blur();
+}
+
+async function openFieldsTab(page: Page): Promise<void> {
+  const fieldsTab = page.getByRole('tab', { name: 'Fields' });
+  if (await fieldsTab.isVisible().catch(() => false)) {
+    await fieldsTab.click();
+  }
 }
 
 async function openCommandPalette(expect: ExpectApi, page: Page): Promise<void> {
