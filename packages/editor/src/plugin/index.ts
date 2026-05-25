@@ -985,8 +985,6 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
             writeFileSync(record.file, next);
             const refreshed = collectAuthoredValues(next, record.file, root);
             replaceFileAuthoredValues(record.file, refreshed?.records ?? []);
-            server.moduleGraph.onFileChange(record.file);
-            server.ws.send({ type: 'full-reload' });
             const updatedRecord = authoredValuesById.get(record.id) ?? {
               ...record,
               source: replacement,
