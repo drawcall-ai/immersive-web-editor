@@ -10,7 +10,6 @@
     "dev:react-three-start": "pnpm --filter @immersive-web-editor/example-react-three-start dev",
     "dev:transform-handles": "pnpm --filter @immersive-web-editor/example-transform-handles dev",
     "build": "pnpm -r --filter './packages/*' build",
-    "check:package": "tsx scripts/check-editor-package.ts",
     "test:e2e": "playwright test",
     "typecheck": "pnpm build && tsc -b",
     "publish:packages": "pnpm -r --filter './packages/*' --access public publish --no-git-checks"
