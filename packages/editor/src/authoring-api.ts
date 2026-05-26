@@ -1,6 +1,5 @@
 export {
   config,
-  configurable,
   defineField,
   val,
   type DefineFieldOptions,
@@ -12,7 +11,7 @@ export {
   type JsonValue,
   type Vector2,
   type Vector3,
-} from './configurable';
+} from './authoring-core';
 export type {
   EditorFieldComponent,
   EditorFieldComponentProps,

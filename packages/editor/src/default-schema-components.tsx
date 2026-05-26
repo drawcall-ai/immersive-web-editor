@@ -20,7 +20,7 @@ import type {
 import type {
   Vector2,
   Vector3,
-} from './configurable';
+} from './authoring-core';
 
 function objectValue(value: JsonValue): Record<string, JsonValue> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, JsonValue> : {};

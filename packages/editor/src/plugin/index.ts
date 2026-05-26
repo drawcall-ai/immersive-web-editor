@@ -123,7 +123,7 @@ function importedAliases(code: string): {
       if (!imported) continue;
       const local = (parts[1] ?? imported).trim();
       if (!IDENTIFIER_RE.test(local)) continue;
-      if (imported === 'config' || imported === 'configurable') configs.add(local);
+      if (imported === 'config') configs.add(local);
       if (imported === 'val') values.add(local);
     }
   }
@@ -768,7 +768,7 @@ function shouldReloadEditor(file: string): boolean {
   return file === resolve(packageSourceDir, 'authoring-api.ts')
     || isWithin(file, resolve(packageSourceDir, 'editor'))
     || isWithin(file, resolve(packageSourceDir, 'ui'))
-    || file === resolve(packageSourceDir, 'configurable.ts')
+    || file === resolve(packageSourceDir, 'authoring-core.ts')
     || file === resolve(packageSourceDir, 'default-schema-components.tsx')
     || file === resolve(packageSourceDir, 'default-schemas.tsx')
     || file === resolve(packageSourceDir, 'rpc.ts')

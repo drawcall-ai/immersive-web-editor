@@ -245,5 +245,3 @@ export function config<T>(idOrLabel: string, labelOrShape: string | T, maybeShap
   const shape = arguments.length === 2 ? labelOrShape : maybeShape;
   return unwrap(shape as T);
 }
-
-export const configurable = config;

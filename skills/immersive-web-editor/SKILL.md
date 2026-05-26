@@ -1,6 +1,6 @@
 ---
 name: immersive-web-editor
-description: Add immersive-web-editor configurables to Vite apps so users can visually edit app and scene parameters through a simple editor UI that syncs changes back to source code. Use when Codex should install the Vite plugin, expose as much reasonable state as possible with config() and val(), choose editable parameters, or create custom field schemas for React Three Fiber, vanilla Three.js, or similar browser-rendered experiences.
+description: Add immersive-web-editor editable fields to Vite apps so users can visually edit app and scene parameters through a simple editor UI that syncs changes back to source code. Use when Codex should install the Vite plugin, expose as much reasonable state as possible with config() and val(), choose editable parameters, or create custom field schemas for React Three Fiber, vanilla Three.js, or similar browser-rendered experiences.
 ---
 
 # Immersive Web Editor

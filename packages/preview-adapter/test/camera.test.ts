@@ -27,7 +27,6 @@ test('receiveEditorCamera can submit before a ready message is observed', () => 
   assert.deepEqual(posted[0], {
     source: '@immersive-web-editor/adapter',
     type: 'editor-camera',
-    matrix: matrixWorld,
     matrixWorld,
     projectionMatrix,
   });

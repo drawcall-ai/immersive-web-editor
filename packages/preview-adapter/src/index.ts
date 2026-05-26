@@ -10,20 +10,18 @@ export type EditorCameraInput = {
   matrixWorld: CameraMatrixInput;
   projectionMatrix: CameraMatrixInput;
 };
-export interface PreviewCanvasRect {
+export interface PreviewViewportRect {
   left: number;
   top: number;
   width: number;
   height: number;
 }
-export interface PreviewCanvasViewport {
-  canvasRect: PreviewCanvasRect;
+export interface PreviewViewport {
+  canvasRect: PreviewViewportRect;
   devicePixelRatio: number;
 }
 export type ReceivedEditorCamera = { submit(): void; dispose(): void };
-export type PublishedPreviewCanvasViewport = { submit(): void; dispose(): void };
-export type PreviewViewport = PreviewCanvasViewport;
-export type PublishedPreviewViewport = PublishedPreviewCanvasViewport;
+export type PublishedPreviewViewport = { submit(): void; dispose(): void };
 
 export interface EditorOriginOptions {
   editorOrigin?: string;
@@ -52,7 +50,6 @@ export function receiveEditorCamera(target: Window, camera: () => EditorCameraIn
     safePostMessage(target, {
       source: SOURCE,
       type: 'editor-camera',
-      matrix: matrixWorld,
       matrixWorld,
       projectionMatrix: matrix(next.projectionMatrix),
     }, targetOrigin);
@@ -65,7 +62,7 @@ export function receiveEditorCamera(target: Window, camera: () => EditorCameraIn
   return { submit, dispose: () => window.removeEventListener('message', listener) };
 }
 
-export function publishPreviewCanvasViewport(previewCanvas: Element | (() => Element | null), options: EditorOriginOptions = {}): PublishedPreviewCanvasViewport {
+export function publishPreviewViewport(previewCanvas: Element | (() => Element | null), options: EditorOriginOptions = {}): PublishedPreviewViewport {
   const targetOrigin = options.editorOrigin ?? parentEditorOrigin();
   const getPreviewCanvas = typeof previewCanvas === 'function' ? previewCanvas : () => previewCanvas;
   let disposed = false;
@@ -120,21 +117,15 @@ export function publishPreviewCanvasViewport(previewCanvas: Element | (() => Ele
   };
 }
 
-export function receivePreviewCanvasViewport(target: Window, accept: (viewport: PreviewCanvasViewport) => void, options: PreviewOriginOptions = {}): () => void {
+export function receivePreviewViewport(target: Window, accept: (viewport: PreviewViewport) => void, options: PreviewOriginOptions = {}): () => void {
   const targetOrigin = options.previewOrigin ?? location.origin;
   const listener = (event: MessageEvent<unknown>) => {
-    if (event.origin !== targetOrigin || event.source !== target || !isPreviewCanvasViewportMessage(event.data)) return;
+    if (event.origin !== targetOrigin || event.source !== target || !isPreviewViewportMessage(event.data)) return;
     accept(event.data);
   };
   window.addEventListener('message', listener);
   return () => window.removeEventListener('message', listener);
 }
-
-// The current @react-three/start preview runtime still imports these names.
-// Keep them as compatibility exports until that generated runtime moves to
-// the Preview Canvas Viewport names.
-export const publishPreviewViewport = publishPreviewCanvasViewport;
-export const receivePreviewViewport = receivePreviewCanvasViewport;
 
 function safePostMessage(target: Window | null | undefined, message: unknown, targetOrigin: string): void {
   try {
@@ -167,14 +158,14 @@ function isCameraMessage(value: unknown): value is { matrixWorld: CameraMatrix; 
   return isMessage(value, 'editor-camera') && isMatrix(value.matrixWorld) && isMatrix(value.projectionMatrix);
 }
 
-function isPreviewCanvasViewportMessage(value: unknown): value is PreviewCanvasViewport {
+function isPreviewViewportMessage(value: unknown): value is PreviewViewport {
   return isMessage(value, 'preview-canvas-viewport')
     && typeof value.devicePixelRatio === 'number'
     && Number.isFinite(value.devicePixelRatio)
     && isCanvasRect(value.canvasRect);
 }
 
-function isCanvasRect(value: unknown): value is PreviewCanvasRect {
+function isCanvasRect(value: unknown): value is PreviewViewportRect {
   return typeof value === 'object' && value !== null
     && 'left' in value && typeof value.left === 'number' && Number.isFinite(value.left)
     && 'top' in value && typeof value.top === 'number' && Number.isFinite(value.top)

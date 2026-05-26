@@ -7,7 +7,7 @@ import {
   type JsonValue,
   type Vector2,
   type Vector3,
-} from './configurable';
+} from './authoring-core';
 
 export interface StringFieldOptions extends FieldOptions<string> {
   multiline?: boolean;

@@ -16,7 +16,6 @@ export declare const array: typeof import('./authoring-api.js').array;
 export declare const boolean: typeof import('./authoring-api.js').boolean;
 export declare const color: typeof import('./authoring-api.js').color;
 export declare const config: typeof import('./authoring-api.js').config;
-export declare const configurable: typeof import('./authoring-api.js').configurable;
 export declare const defineField: typeof import('./authoring-api.js').defineField;
 export declare const euler: typeof import('./authoring-api.js').euler;
 export declare const fileUrl: typeof import('./authoring-api.js').fileUrl;

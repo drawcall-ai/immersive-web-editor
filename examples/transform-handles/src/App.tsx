@@ -1,4 +1,4 @@
-import { publishEditorCamera, publishPreviewCanvasViewport } from '@immersive-web-editor/adapter';
+import { publishEditorCamera, publishPreviewViewport } from '@immersive-web-editor/adapter';
 import { Canvas, useLoader, useThree } from '@react-three/fiber';
 import { useEffect } from 'react';
 import { SRGBColorSpace, TextureLoader } from 'three';
@@ -26,7 +26,7 @@ function PreviewCameraSync() {
       camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
       invalidate();
     });
-    const viewport = publishPreviewCanvasViewport(gl.domElement);
+    const viewport = publishPreviewViewport(gl.domElement);
     return () => {
       disposeEditorCamera();
       viewport.dispose();

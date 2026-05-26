@@ -10,7 +10,7 @@ import {
   type FolderSegment,
   type SlotPath,
 } from '@immersive-web-editor/ui';
-import { receiveEditorCamera, receivePreviewCanvasViewport, type PreviewCanvasViewport, type ReceivedEditorCamera } from '@immersive-web-editor/adapter';
+import { receiveEditorCamera, receivePreviewViewport, type PreviewViewport, type ReceivedEditorCamera } from '@immersive-web-editor/adapter';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitHandles } from '@react-three/handle';
 import { PointerEvents, noEvents } from '@react-three/xr';
@@ -414,7 +414,7 @@ function PreviewSlots({
 }) {
   const [frame, setFrame] = useState<HTMLIFrameElement | null>(null);
   const [previewWindow, setPreviewWindow] = useState<Window | null>(null);
-  const [previewCanvasViewport, setPreviewCanvasViewport] = useState<PreviewCanvasViewport | null>(null);
+  const [previewCanvasViewport, setPreviewCanvasViewport] = useState<PreviewViewport | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -475,7 +475,7 @@ function PreviewSlots({
 
   useEffect(() => {
     if (!previewWindow) return undefined;
-    return receivePreviewCanvasViewport(previewWindow, setPreviewCanvasViewport, { previewOrigin });
+    return receivePreviewViewport(previewWindow, setPreviewCanvasViewport, { previewOrigin });
   }, [previewOrigin, previewWindow]);
 
   return (
@@ -508,7 +508,7 @@ function OverlayCanvasSlotContent({
   previewOrigin,
   target,
 }: {
-  previewCanvasViewport: PreviewCanvasViewport | null;
+  previewCanvasViewport: PreviewViewport | null;
   previewOrigin: string;
   target: Window | null;
 }) {
