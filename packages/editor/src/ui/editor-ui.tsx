@@ -26,6 +26,7 @@ import {
 import { Palette } from './palette';
 import { styles } from './styles';
 import type { FieldDescriptor } from './sdk';
+import { createEditorApiClient, type EditorApiClient } from './editor-api-client';
 import {
   fieldStore,
   mountedFieldStore,
@@ -49,7 +50,7 @@ import type {
   EditorSlotPath,
 } from '../plugin/options';
 
-const DEFAULT_AUTHORED_VALUES_BASE_PATH = '/__editor/authored-values';
+const DEFAULT_EDITOR_API_URL = '/editor-api';
 const fieldComponents = new Map<string, FieldDescriptor['component']>([
   ['string', defaultSchemaComponents.StringFieldComponent],
   ['number', defaultSchemaComponents.NumberFieldComponent],
@@ -86,7 +87,7 @@ export interface EditorUIProps {
   fieldsPath: EditorFolderPath;
   pluginModules?: Array<{ name: string; module: EditorPluginModule; path?: EditorFolderPath }>;
   pluginCommands?: InitialCommand[];
-  authoredValuesBasePath?: string;
+  editorApiUrl?: string;
 }
 
 const EMPTY_PLUGIN_MODULES: NonNullable<EditorUIProps['pluginModules']> = [];
@@ -263,13 +264,8 @@ function inputLabel(fieldRegistration: RuntimeField): string {
   return fieldRegistration.path.at(-1) ?? fieldRegistration.fieldFolder;
 }
 
-async function commitFieldValue(authoredValuesBasePath: string, fieldRegistration: RuntimeField, value: JsonValue): Promise<void> {
-  const res = await fetch(`${authoredValuesBasePath}/${encodeURIComponent(fieldRegistration.id)}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ value }),
-  });
-  if (!res.ok) throw new Error(await res.text());
+async function commitFieldValue(editorApi: EditorApiClient, fieldRegistration: RuntimeField, value: JsonValue): Promise<void> {
+  await editorApi.authoredValues.commit({ id: fieldRegistration.id, value });
   fieldRegistration.value = value;
   fieldStore.emit();
 }
@@ -300,6 +296,7 @@ function FieldOutlet({
   dataPath,
   field,
   fieldsPath,
+  editorApi,
   setValue,
   value,
   viewPath,
@@ -308,6 +305,7 @@ function FieldOutlet({
   dataPath: readonly (string | number)[];
   field: FieldDescriptor;
   fieldsPath: FolderSegment[];
+  editorApi: EditorApiClient;
   setValue(value: JsonValue): void;
   value: JsonValue;
   viewPath: readonly (string | number | FolderSegment)[];
@@ -336,6 +334,7 @@ function FieldOutlet({
     folder: folderSegment,
     label,
     fieldFolder,
+    editorApi,
     path,
     setValue,
     value,
@@ -347,6 +346,7 @@ function FieldOutlet({
           dataPath={options.dataPath}
           field={options.field}
           fieldsPath={fieldsPath}
+          editorApi={editorApi}
           key={options.key}
           value={options.value}
           viewPath={options.viewPath}
@@ -371,10 +371,10 @@ function FieldOutlet({
 }
 
 function FieldContributions({
-  authoredValuesBasePath,
+  editorApi,
   fieldsPath,
 }: {
-  authoredValuesBasePath: string;
+  editorApi: EditorApiClient;
   fieldsPath: FolderSegment[];
 }) {
   const [, setVersion] = useState(0);
@@ -385,12 +385,13 @@ function FieldContributions({
         <FieldOutlet
           fieldRegistration={fieldRegistration}
           dataPath={[]}
+          editorApi={editorApi}
           field={fieldRegistration.field}
           fieldsPath={fieldsPath}
           key={fieldRegistration.id}
           value={fieldRegistration.value as JsonValue}
           viewPath={fieldRegistration.path}
-          setValue={(value) => void commitFieldValue(authoredValuesBasePath, fieldRegistration, value)}
+          setValue={(value) => void commitFieldValue(editorApi, fieldRegistration, value)}
         />
       ))}
     </>
@@ -691,7 +692,7 @@ function originFromUrl(url: string): string {
 }
 
 export function EditorUI({
-  authoredValuesBasePath = DEFAULT_AUTHORED_VALUES_BASE_PATH,
+  editorApiUrl = DEFAULT_EDITOR_API_URL,
   fieldsPath,
   overlayPath,
   pluginCommands = EMPTY_PLUGIN_COMMANDS,
@@ -706,6 +707,7 @@ export function EditorUI({
   const configuredPreviewPath = useMemo(() => configuredSlotPath(previewPath), [previewPath]);
   const configuredOverlayPath = useMemo(() => configuredSlotPath(overlayPath), [overlayPath]);
   const configuredFieldsPath = useMemo(() => configuredFolderPath(fieldsPath), [fieldsPath]);
+  const editorApi = useMemo(() => createEditorApiClient(editorApiUrl), [editorApiUrl]);
 
   useKeybindings();
 
@@ -800,7 +802,7 @@ export function EditorUI({
           onLoad={handleIframeLoad}
           onUnload={handleIframeUnload}
         />
-        <FieldContributions authoredValuesBasePath={authoredValuesBasePath} fieldsPath={configuredFieldsPath} />
+        <FieldContributions editorApi={editorApi} fieldsPath={configuredFieldsPath} />
         <RuntimeMountedFields />
       </EditorLayout>
       <Palette open={paletteOpen} onOpenChange={setPaletteOpen} />

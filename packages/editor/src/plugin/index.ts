@@ -1,10 +1,16 @@
 import { existsSync, mkdirSync, readdirSync, statSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, extname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { IncomingMessage, ServerResponse } from 'node:http';
 import pc from 'picocolors';
 import type { Plugin, ViteDevServer } from 'vite';
-import type { EditorApiErrorResponse, ListPublicFilesResponse, PublicFile, UploadPublicFileResponse } from '../rpc.js';
+import { RPCHandler } from '@orpc/server/node';
+import type { ListPublicFilesResponse, PublicFile, UploadPublicFileResponse } from '../rpc.js';
+import {
+  EDITOR_API_PATH,
+  editorApiRouter,
+  type AuthoredValueCommitInput,
+  type PublicFileUploadInput,
+} from '../editor-api.js';
 import {
   DEFAULT_FIELDS_PATH,
   DEFAULT_OVERLAY_PATH,
@@ -16,8 +22,6 @@ import {
 } from './options.js';
 
 const EDITOR_PATH = '/editor';
-const AUTHORED_VALUES_PATH = '/__editor/authored-values';
-const EDITOR_PUBLIC_FILES_PATH: typeof import('../rpc.js').EDITOR_PUBLIC_FILES_PATH = '/__editor/public-files';
 const EDITOR_UI_VIRTUAL_ID = 'virtual:editor/ui';
 const EDITOR_CONFIG_VIRTUAL_ID = 'virtual:editor/config';
 const EDITOR_PLUGIN_VIRTUAL_PREFIX = 'virtual:editor/plugin/';
@@ -534,17 +538,6 @@ function collectAuthoredValues(
   return { code: transformed, records };
 }
 
-function sendJson(res: ServerResponse, statusCode: number, value: unknown): void {
-  res.statusCode = statusCode;
-  res.setHeader('content-type', 'application/json; charset=utf-8');
-  res.setHeader('cache-control', 'no-store');
-  res.end(JSON.stringify(value));
-}
-
-function editorApiError(message: string): EditorApiErrorResponse {
-  return { error: message };
-}
-
 function publicAuthoredValue(record: AuthoredValueRecord): object {
   return {
     id: record.id,
@@ -557,25 +550,6 @@ function publicAuthoredValue(record: AuthoredValueRecord): object {
     column: record.column,
     source: record.source,
   };
-}
-
-function readRequestBody(req: IncomingMessage): Promise<string> {
-  return readRequestBuffer(req).then((body) => body.toString('utf8'));
-}
-
-function readRequestBuffer(req: IncomingMessage): Promise<Buffer> {
-  return new Promise((resolveBody, reject) => {
-    const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
-    req.on('end', () => resolveBody(Buffer.concat(chunks)));
-    req.on('error', reject);
-  });
-}
-
-interface UploadedEditorFile {
-  fileName: string;
-  contentType: string;
-  data: Buffer;
 }
 
 function editorPublicDir(server: ViteDevServer, root: string): string | null {
@@ -612,54 +586,6 @@ function listPublicFiles(publicDir: string): PublicFile[] {
   return files.sort((a, b) => a.fileName.localeCompare(b.fileName, undefined, { numeric: true, sensitivity: 'base' }));
 }
 
-function parseMultipartUpload(req: IncomingMessage, body: Buffer): UploadedEditorFile {
-  const contentType = String(req.headers['content-type'] ?? '');
-  const boundaryMatch = /(?:^|;)\s*boundary=(?:"([^"]+)"|([^;]+))/i.exec(contentType);
-  const boundary = boundaryMatch?.[1] ?? boundaryMatch?.[2];
-  if (!boundary) throw new Error('Upload requires multipart/form-data.');
-
-  const boundaryBuffer = Buffer.from(`--${boundary}`);
-  let cursor = body.indexOf(boundaryBuffer);
-  while (cursor !== -1) {
-    let partStart = cursor + boundaryBuffer.length;
-    if (body.subarray(partStart, partStart + 2).toString('utf8') === '--') break;
-    if (body.subarray(partStart, partStart + 2).toString('utf8') === '\r\n') partStart += 2;
-
-    const nextBoundary = body.indexOf(boundaryBuffer, partStart);
-    if (nextBoundary === -1) break;
-
-    let part = body.subarray(partStart, nextBoundary);
-    if (part.length >= 2 && part.subarray(part.length - 2).toString('utf8') === '\r\n') {
-      part = part.subarray(0, part.length - 2);
-    }
-
-    const headerEnd = part.indexOf(Buffer.from('\r\n\r\n'));
-    if (headerEnd !== -1) {
-      const headers = part.subarray(0, headerEnd).toString('utf8');
-      const data = part.subarray(headerEnd + 4);
-      const disposition = /^content-disposition:\s*(.+)$/im.exec(headers)?.[1] ?? '';
-      const fileName = dispositionParameter(disposition, 'filename');
-      if (fileName) {
-        return {
-          fileName,
-          contentType: /^content-type:\s*(.+)$/im.exec(headers)?.[1]?.trim() ?? 'application/octet-stream',
-          data,
-        };
-      }
-    }
-
-    cursor = nextBoundary;
-  }
-
-  throw new Error('Upload did not include a file.');
-}
-
-function dispositionParameter(disposition: string, key: string): string | null {
-  const match = new RegExp(`${key}="([^"]*)"`).exec(disposition);
-  if (!match) return null;
-  return match[1].replace(/\\"/g, '"').trim() || null;
-}
-
 function publicUploadFileName(originalFileName: string, publicDir: string): string {
   const raw = basename(originalFileName).replace(/\0/g, '').trim();
   const extension = extname(raw).replace(/[^A-Za-z0-9.]/g, '').slice(0, 32);
@@ -677,23 +603,12 @@ function publicUploadFileName(originalFileName: string, publicDir: string): stri
   throw new Error('Could not choose a unique file name.');
 }
 
-function parseReplacementBody(req: IncomingMessage, body: string): string {
-  const contentType = req.headers['content-type'] ?? '';
-  if (!String(contentType).includes('application/json')) {
-    JSON.parse(body);
-    return body;
+function replacementFromInput(input: AuthoredValueCommitInput): string {
+  if (typeof input.code === 'string') {
+    JSON.parse(input.code);
+    return input.code;
   }
-
-  const parsed = JSON.parse(body) as unknown;
-  if (parsed && typeof parsed === 'object') {
-    const object = parsed as { code?: unknown; value?: unknown };
-    if (typeof object.code === 'string') {
-      JSON.parse(object.code);
-      return object.code;
-    }
-    if ('value' in object) return JSON.stringify(object.value);
-  }
-  return JSON.stringify(parsed);
+  return JSON.stringify(input.value);
 }
 
 function renderEditorUI(): string {
@@ -822,6 +737,7 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
           alias: [
             { find: new RegExp(`^${escapeRegExp(AUTHORING_API_MODULE_ID)}$`), replacement: authoringApiEntry },
           ],
+          dedupe: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime'],
         },
       };
       if (env.command !== 'build' || options.build?.enabled !== true) return sharedConfig;
@@ -895,6 +811,7 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
     },
 
     async configureServer(server) {
+      const editorApiHandler = new RPCHandler(editorApiRouter);
       const printViteUrls = server.printUrls.bind(server);
       server.printUrls = () => {
         printViteUrls();
@@ -915,89 +832,62 @@ export default function editorPlugin(options: EditorOptions = {}): Plugin {
         const url = req.url ?? '';
         const pathname = new URL(url, 'http://editor.local').pathname;
 
-        if (pathname === '/__editor/ping') {
-          res.setHeader('content-type', 'text/plain');
-          res.end(`pong ${Date.now()} wsToken=${wsToken} transformCalls=${transformCalls}`);
-          return;
-        }
+        if (pathname.startsWith(`${EDITOR_API_PATH}/`) || pathname === EDITOR_API_PATH) {
+          await editorApiHandler.handle(req, res, {
+            prefix: EDITOR_API_PATH,
+            context: {
+              commitAuthoredValue(input: AuthoredValueCommitInput) {
+                const record = authoredValuesById.get(input.id);
+                if (!record) {
+                  throw new Error('Unknown authored value id.');
+                }
 
-        if (pathname === EDITOR_PUBLIC_FILES_PATH) {
-          if (req.method === 'GET') {
-            const publicDir = editorPublicDir(server, root);
-            if (!publicDir) {
-              sendJson(res, 400, editorApiError('Vite publicDir is disabled.'));
-              return;
-            }
-            sendJson(res, 200, { files: listPublicFiles(publicDir) } satisfies ListPublicFilesResponse);
-            return;
-          }
+                const replacement = replacementFromInput(input);
+                const current = readFileSync(record.file, 'utf8');
+                const currentSource = current.slice(record.start, record.end);
+                if (currentSource !== record.source) {
+                  throw new Error('Authored value source range is stale. Reload the module and retry.');
+                }
 
-          if (req.method !== 'POST') {
-            sendJson(res, 405, editorApiError('Public file requests require GET or POST.'));
-            return;
-          }
-
-          try {
-            const publicDir = editorPublicDir(server, root);
-            if (!publicDir) {
-              sendJson(res, 400, editorApiError('Vite publicDir is disabled.'));
-              return;
-            }
-
-            const upload = parseMultipartUpload(req, await readRequestBuffer(req));
-            mkdirSync(publicDir, { recursive: true });
-            const fileName = publicUploadFileName(upload.fileName, publicDir);
-            writeFileSync(resolve(publicDir, fileName), upload.data);
-            sendJson(res, 200, {
-              ok: true,
-              fileName,
-              url: `/${encodeURIComponent(fileName)}`,
-              contentType: upload.contentType,
-            } satisfies UploadPublicFileResponse);
-          } catch (err) {
-            sendJson(res, 400, editorApiError((err as Error).message));
-          }
-          return;
-        }
-
-        if (pathname.startsWith(`${AUTHORED_VALUES_PATH}/`) && req.method === 'POST') {
-          const id = decodeURIComponent(pathname.slice(AUTHORED_VALUES_PATH.length + 1));
-          const record = authoredValuesById.get(id);
-          if (!record) {
-            sendJson(res, 404, { error: 'Unknown authored value id.' });
-            return;
-          }
-
-          try {
-            const replacement = parseReplacementBody(req, await readRequestBody(req));
-            const current = readFileSync(record.file, 'utf8');
-            const currentSource = current.slice(record.start, record.end);
-            if (currentSource !== record.source) {
-              sendJson(res, 409, {
-                error: 'Authored value source range is stale. Reload the module and retry.',
-                expected: record.source,
-                actual: currentSource,
-              });
-              return;
-            }
-
-            const next = `${current.slice(0, record.start)}${replacement}${current.slice(record.end)}`;
-            writeFileSync(record.file, next);
-            const refreshed = collectAuthoredValues(next, record.file, root);
-            replaceFileAuthoredValues(record.file, refreshed?.records ?? []);
-            const updatedRecord = authoredValuesById.get(record.id) ?? {
-              ...record,
-              source: replacement,
-              value: JSON.parse(replacement) as unknown,
-              end: record.start + replacement.length,
-            };
-            sendJson(res, 200, {
-              ...publicAuthoredValue(updatedRecord),
-              ok: true,
-            });
-          } catch (err) {
-            sendJson(res, 400, { error: (err as Error).message });
-          }
+                const next = `${current.slice(0, record.start)}${replacement}${current.slice(record.end)}`;
+                writeFileSync(record.file, next);
+                const refreshed = collectAuthoredValues(next, record.file, root);
+                replaceFileAuthoredValues(record.file, refreshed?.records ?? []);
+                const updatedRecord = authoredValuesById.get(record.id) ?? {
+                  ...record,
+                  source: replacement,
+                  value: JSON.parse(replacement) as unknown,
+                  end: record.start + replacement.length,
+                };
+                return {
+                  ...publicAuthoredValue(updatedRecord),
+                  ok: true,
+                };
+              },
+              listPublicFiles() {
+                const publicDir = editorPublicDir(server, root);
+                if (!publicDir) {
+                  throw new Error('Vite publicDir is disabled.');
+                }
+                return { files: listPublicFiles(publicDir) } satisfies ListPublicFilesResponse;
+              },
+              uploadPublicFile(input: PublicFileUploadInput) {
+                const publicDir = editorPublicDir(server, root);
+                if (!publicDir) {
+                  throw new Error('Vite publicDir is disabled.');
+                }
+                mkdirSync(publicDir, { recursive: true });
+                const fileName = publicUploadFileName(input.fileName, publicDir);
+                writeFileSync(resolve(publicDir, fileName), Buffer.from(input.dataBase64, 'base64'));
+                return {
+                  ok: true,
+                  fileName,
+                  url: `/${encodeURIComponent(fileName)}`,
+                  contentType: input.contentType,
+                } satisfies UploadPublicFileResponse;
+              },
+            },
+          });
           return;
         }
 

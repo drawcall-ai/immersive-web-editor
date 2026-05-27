@@ -36,8 +36,6 @@ export interface RemoveFieldsByModulePathMessage {
 
 export type PreviewToEditorMessage = AddFieldMessage | RemoveFieldsByModulePathMessage;
 
-export const EDITOR_PUBLIC_FILES_PATH = '/__editor/public-files';
-
 export interface PublicFile {
   fileName: string;
   url: string;

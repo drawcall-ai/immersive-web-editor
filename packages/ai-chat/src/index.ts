@@ -22,8 +22,7 @@ type AiStatus =
   | { state: 'ready'; message?: string }
   | { state: 'error'; message: string };
 
-const OC_PROXY_PREFIX = '/__editor/oc';
-const AI_STATUS_PATH = '/__editor/ai/status';
+const OC_PROXY_PREFIX = '/editor-api/opencode';
 const DEFAULT_PORT = 4096;
 const DEFAULT_AI_PATH: EditorFolderPath = [
   { id: 'editor-root', title: 'Editor', arrangement: 'dock-row' },
@@ -340,11 +339,6 @@ export function ai(options: AiChatPluginOptions = {}): EditorPlugin {
       process.once('exit', cleanup);
       server.middlewares.use(async (req, res, next) => {
         const url = req.url ?? '';
-        if (url === AI_STATUS_PATH) {
-          res.setHeader('content-type', 'application/json; charset=utf-8');
-          res.end(JSON.stringify(backend.getStatus()));
-          return;
-        }
         if (!url.startsWith(OC_PROXY_PREFIX)) {
           next();
           return;

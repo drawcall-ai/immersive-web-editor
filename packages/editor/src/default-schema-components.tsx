@@ -2,15 +2,11 @@ import { cx } from '@emotion/css';
 import type { FolderSegment } from '@immersive-web-editor/ui';
 import { PivotHandlesContext, PivotHandlesHandles, TransformHandles, defaultApply } from '@react-three/handle';
 import { Plus, ToggleLeft, Upload, X } from 'lucide-react';
-import { useEffect, useState, type ChangeEvent, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { OverlayCanvasPortal } from './ui/overlay-canvas';
 import { styles } from './ui/styles';
-import {
-  EDITOR_PUBLIC_FILES_PATH,
-  isListPublicFilesResponse,
-  isUploadPublicFileResponse,
-  type PublicFile,
-} from './rpc';
+import type { EditorApiClient } from './ui/editor-api-client';
+import type { PublicFile } from './rpc';
 import type { Transform3D } from './default-schemas';
 import type {
   EditorFieldComponent,
@@ -251,80 +247,6 @@ export const ColorFieldComponent: EditorFieldComponent = ({ setValue, value }) =
   />
 );
 
-const PUBLIC_FILES_QUERY_KEY = '__editor:public-files';
-const PUBLIC_FILES_QUERY = {
-  key: PUBLIC_FILES_QUERY_KEY,
-  status: 'idle' as 'idle' | 'loading' | 'success' | 'error',
-  files: [] as PublicFile[],
-  error: null as string | null,
-  promise: null as Promise<PublicFile[]> | null,
-  subscribers: new Set<() => void>(),
-};
-
-function emitPublicFilesQuery(): void {
-  for (const subscriber of PUBLIC_FILES_QUERY.subscribers) subscriber();
-}
-
-async function refreshPublicFilesQuery(force = false): Promise<PublicFile[]> {
-  if (PUBLIC_FILES_QUERY.promise && !force) return PUBLIC_FILES_QUERY.promise;
-  if (PUBLIC_FILES_QUERY.status === 'success' && !force) return PUBLIC_FILES_QUERY.files;
-
-  PUBLIC_FILES_QUERY.status = 'loading';
-  PUBLIC_FILES_QUERY.error = null;
-  emitPublicFilesQuery();
-
-  PUBLIC_FILES_QUERY.promise = fetch(EDITOR_PUBLIC_FILES_PATH)
-    .then(async (res) => {
-      const payload = await res.json() as unknown;
-      if (!res.ok) {
-        const error = payload && typeof payload === 'object' && 'error' in payload && typeof payload.error === 'string'
-          ? payload.error
-          : 'Could not load public files.';
-        throw new Error(error);
-      }
-      if (!isListPublicFilesResponse(payload)) throw new Error('Public files response had an unexpected shape.');
-      PUBLIC_FILES_QUERY.status = 'success';
-      PUBLIC_FILES_QUERY.files = payload.files;
-      PUBLIC_FILES_QUERY.error = null;
-      return payload.files;
-    })
-    .catch((err) => {
-      PUBLIC_FILES_QUERY.status = 'error';
-      PUBLIC_FILES_QUERY.error = (err as Error).message;
-      throw err;
-    })
-    .finally(() => {
-      PUBLIC_FILES_QUERY.promise = null;
-      emitPublicFilesQuery();
-    });
-
-  return PUBLIC_FILES_QUERY.promise;
-}
-
-function usePublicFilesQuery(): {
-  files: PublicFile[];
-  status: typeof PUBLIC_FILES_QUERY.status;
-  error: string | null;
-} {
-  const [, setVersion] = useState(0);
-  useEffect(() => {
-    const subscriber = () => setVersion((version) => version + 1);
-    PUBLIC_FILES_QUERY.subscribers.add(subscriber);
-    if (PUBLIC_FILES_QUERY.status === 'idle' || PUBLIC_FILES_QUERY.status === 'error') {
-      void refreshPublicFilesQuery();
-    }
-    return () => {
-      PUBLIC_FILES_QUERY.subscribers.delete(subscriber);
-    };
-  }, []);
-
-  return {
-    files: PUBLIC_FILES_QUERY.files,
-    status: PUBLIC_FILES_QUERY.status,
-    error: PUBLIC_FILES_QUERY.error,
-  };
-}
-
 function matchesAccept(fileName: string, accept: string | undefined): boolean {
   if (!accept) return true;
   const rules = accept.split(',').map((rule) => rule.trim().toLowerCase()).filter(Boolean);
@@ -357,41 +279,57 @@ function matchesAccept(fileName: string, accept: string | undefined): boolean {
 
 function FileUrlInput({
   accept,
+  editorApi,
   setValue,
   value,
 }: {
   accept?: string;
+  editorApi: EditorApiClient;
   setValue(value: string): void | Promise<void>;
   value: string;
 }) {
-  const filesQuery = usePublicFilesQuery();
+  const [files, setFiles] = useState<PublicFile[]>([]);
+  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const files = filesQuery.files.filter((file) => matchesAccept(file.fileName, accept));
-  const hasCurrentValue = value !== '' && !files.some((file) => file.fileName === value);
-  const selectedValue = value || files[0]?.fileName || '';
+  const visibleFiles = useMemo(() => files.filter((file) => matchesAccept(file.fileName, accept)), [accept, files]);
+  const hasCurrentValue = value !== '' && !visibleFiles.some((file) => file.fileName === value);
+  const selectedValue = value || visibleFiles[0]?.fileName || '';
+
+  const refreshFiles = async () => {
+    setStatus('loading');
+    setError(null);
+    try {
+      const result = await editorApi.publicFiles.list();
+      setFiles(result.files);
+      setStatus('success');
+      return result.files;
+    } catch (err) {
+      setError((err as Error).message);
+      setStatus('error');
+      return [];
+    }
+  };
 
   useEffect(() => {
-    if (value !== '' || files.length === 0) return;
-    void setValue(files[0]!.fileName);
-  }, [files, setValue, value]);
+    void refreshFiles();
+  }, [editorApi]);
+
+  useEffect(() => {
+    if (value !== '' || visibleFiles.length === 0) return;
+    void setValue(visibleFiles[0]!.fileName);
+  }, [visibleFiles, setValue, value]);
 
   const uploadFile = async (file: File) => {
     setUploading(true);
     setError(null);
     try {
-      const body = new FormData();
-      body.append('file', file);
-      const res = await fetch(EDITOR_PUBLIC_FILES_PATH, { method: 'POST', body });
-      const payload = await res.json() as unknown;
-      if (!res.ok) {
-        const error = payload && typeof payload === 'object' && 'error' in payload && typeof payload.error === 'string'
-          ? payload.error
-          : 'Upload failed.';
-        throw new Error(error);
-      }
-      if (!isUploadPublicFileResponse(payload)) throw new Error('Upload response had an unexpected shape.');
-      await refreshPublicFilesQuery(true).catch(() => undefined);
+      const payload = await editorApi.publicFiles.upload({
+        fileName: file.name,
+        contentType: file.type || 'application/octet-stream',
+        dataBase64: await fileToBase64(file),
+      });
+      await refreshFiles().catch(() => undefined);
       await setValue(payload.fileName);
     } catch (err) {
       setError((err as Error).message);
@@ -408,13 +346,13 @@ function FileUrlInput({
           value={selectedValue}
           onChange={(event) => setValue(event.currentTarget.value)}
         >
-          {files.length === 0 && (
+          {visibleFiles.length === 0 && (
             <option disabled value="">
-              {filesQuery.status === 'loading' ? 'Loading files...' : 'Upload a file'}
+              {status === 'loading' ? 'Loading files...' : 'Upload a file'}
             </option>
           )}
           {hasCurrentValue && <option value={value}>{value}</option>}
-          {files.map((file) => (
+          {visibleFiles.map((file) => (
             <option key={file.fileName} value={file.fileName}>
               {file.fileName}
             </option>
@@ -436,16 +374,25 @@ function FileUrlInput({
           />
         </label>
       </div>
-      {filesQuery.error && <div className={styles.fieldFileError}>{filesQuery.error}</div>}
       {error && <div className={styles.fieldFileError}>{error}</div>}
     </div>
   );
 }
 
-export const FileUrlFieldComponent: EditorFieldComponent = ({ field, setValue, value }) => {
+async function fileToBase64(file: File): Promise<string> {
+  const buffer = new Uint8Array(await file.arrayBuffer());
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let index = 0; index < buffer.length; index += chunkSize) {
+    binary += String.fromCharCode(...buffer.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
+
+export const FileUrlFieldComponent: EditorFieldComponent = ({ editorApi, field, setValue, value }) => {
   const current = typeof value === 'string' ? value : '';
   const accept = propString(field.props, 'accept');
-  return <FileUrlInput accept={accept} value={current} setValue={(next) => setValue(next)} />;
+  return <FileUrlInput accept={accept} editorApi={editorApi} value={current} setValue={(next) => setValue(next)} />;
 };
 
 export const Vector2FieldComponent: EditorFieldComponent = ({ field, setValue, value }) => (

@@ -4,6 +4,7 @@
 import type { ReactNode } from 'react';
 import type { SlotSegment, FolderSegment, SlotPath } from '@immersive-web-editor/ui';
 import type { JsonValue } from '../rpc';
+import type { EditorApiClient } from './editor-api-client';
 
 export type { JsonValue };
 
@@ -20,6 +21,7 @@ export interface EditorFieldComponentProps {
   fieldFolder: FolderSegment;
   viewPath: readonly (string | number | FolderSegment)[];
   setValue(value: JsonValue): void | Promise<void>;
+  editorApi: EditorApiClient;
   renderField(options: {
     dataPath: readonly (string | number)[];
     field: FieldDescriptor;
