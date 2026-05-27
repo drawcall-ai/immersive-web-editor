@@ -630,6 +630,8 @@ function sortTree(node: FolderNode): void {
   node.slots.sort((a, b) => {
     const aSegment = node.slotSegments.get(a.id);
     const bSegment = node.slotSegments.get(b.id);
+    const order = (aSegment?.order ?? Number.POSITIVE_INFINITY) - (bSegment?.order ?? Number.POSITIVE_INFINITY);
+    if (order !== 0) return order;
     return compareTitleValues(aSegment?.title, bSegment?.title) || a.sourceOrder - b.sourceOrder;
   });
   for (const child of node.folders) sortTree(child);
