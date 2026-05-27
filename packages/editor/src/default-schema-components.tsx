@@ -237,15 +237,24 @@ export const BooleanFieldComponent: EditorFieldComponent = ({ setValue, value })
   </label>
 );
 
-export const ColorFieldComponent: EditorFieldComponent = ({ setValue, value }) => (
-  <input
-    className={cx(styles.fieldInput, styles.fieldColor)}
-    type="color"
-    value={typeof value === 'string' ? value : '#ffffff'}
-    onChange={(event) => setValue(event.currentTarget.value)}
-    onBlur={(event) => setValue(event.currentTarget.value)}
-  />
-);
+export const ColorFieldComponent: EditorFieldComponent = ({ setValue, value }) => {
+  const committedValue = typeof value === 'string' ? value : '#ffffff';
+  const [draftValue, setDraftValue] = useState(committedValue);
+
+  useEffect(() => {
+    setDraftValue(committedValue);
+  }, [committedValue]);
+
+  return (
+    <input
+      className={cx(styles.fieldInput, styles.fieldColor)}
+      type="color"
+      value={draftValue}
+      onChange={(event) => setDraftValue(event.currentTarget.value)}
+      onBlur={(event) => setValue(event.currentTarget.value)}
+    />
+  );
+};
 
 function matchesAccept(fileName: string, accept: string | undefined): boolean {
   if (!accept) return true;

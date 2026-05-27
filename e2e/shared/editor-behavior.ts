@@ -44,7 +44,9 @@ export function defineFixtureFieldBehaviorTests(api: EditorBehaviorTestApi, crea
       await expect(preview.getByTestId('count')).toHaveText('7');
       await page.locator(slotSelector('Fields/Text/enabled')).getByRole('checkbox').click();
       await expect(preview.getByTestId('enabled')).toHaveText('no');
-      await page.locator(slotSelector('Fields/Text/tint')).locator('input[type="color"]').fill('#8844cc');
+      const tintInput = page.locator(slotSelector('Fields/Text/tint')).locator('input[type="color"]');
+      await tintInput.fill('#8844cc');
+      await tintInput.blur();
       await expect(preview.getByTestId('tint')).toHaveText('#8844cc');
       await commitJsonField(expect, page, 'Fields/Text/metadata', '{"variant":"beta","score":4}');
 
