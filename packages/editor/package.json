@@ -37,6 +37,8 @@
     "@emotion/css": "^11.13.5",
     "@immersive-web-editor/adapter": "workspace:*",
     "@immersive-web-editor/ui": "workspace:*",
+    "@orpc/client": "^1.14.3",
+    "@orpc/server": "^1.14.3",
     "@pmndrs/handle": "^6.6.29",
     "@pmndrs/pointer-events": "^6.6.29",
     "@react-three/fiber": "^9.6.1",
@@ -47,6 +49,7 @@
     "picocolors": "^1.1.1",
     "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^18.0.0 || ^19.0.0",
-    "three": "^0.184.0"
+    "three": "^0.184.0",
+    "zod": "^4.4.3"
   }
 }

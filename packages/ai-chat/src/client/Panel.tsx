@@ -122,10 +122,8 @@ function renderMarkdown(src: string): string {
   return DOMPurify.sanitize(raw);
 }
 
-type AiStatus = { state: 'disabled' | 'starting' | 'ready' | 'error'; message?: string };
 export interface AiClientOptions {
   opencodeBaseUrl?: string;
-  statusUrl?: string;
   autoConnect?: boolean;
 }
 const DEFAULT_AI_CLIENT_OPTIONS: AiClientOptions = {};
@@ -163,7 +161,7 @@ const queryKeys = {
 };
 
 function createClient(options: AiClientOptions): OpencodeClient {
-  return createOpencodeClient({ baseUrl: options.opencodeBaseUrl ?? `${window.location.origin}/__editor/oc` });
+  return createOpencodeClient({ baseUrl: options.opencodeBaseUrl ?? `${window.location.origin}/editor-api/opencode` });
 }
 
 function formatTime(ts?: number): string {
@@ -515,7 +513,6 @@ function SessionPanel({ fixedSessionID, options }: { fixedSessionID: string; opt
   const [input, setInput] = useState('');
   const [connected, setConnected] = useState(false);
   const [running, setRunning] = useState(false);
-  const [aiStatus, setAiStatus] = useState<AiStatus>({ state: 'starting' });
   const [err, setErr] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -633,25 +630,6 @@ function SessionPanel({ fixedSessionID, options }: { fixedSessionID: string; opt
     if (modelChoices.some((m) => modelValue(m.providerID, m.modelID) === selectedModel)) return;
     setSelectedModel(preferredModelValue(providerCatalog));
   }, [modelChoices, providerCatalog, selectedModel]);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function refresh() {
-      try {
-        const res = await fetch(options.statusUrl ?? '/__editor/ai/status');
-        const status = (await res.json()) as AiStatus;
-        if (!cancelled) setAiStatus(status);
-      } catch (e) {
-        if (!cancelled) setAiStatus({ state: 'error', message: (e as Error).message });
-      }
-    }
-    void refresh();
-    const id = window.setInterval(() => void refresh(), 1500);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [options.statusUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -938,9 +916,9 @@ function SessionPanel({ fixedSessionID, options }: { fixedSessionID: string; opt
     [client, sessionID, updateSessionData],
   );
 
-  const connectionError = aiStatus.state === 'error' || aiStatus.state === 'disabled';
-  const connecting = !connectionError && (aiStatus.state !== 'ready' || !connected || loading);
-  const canSend = !!sessionID && connected && aiStatus.state === 'ready' && !running && (!!input.trim() || attachments.length > 0);
+  const connectionError = Boolean(err);
+  const connecting = !connectionError && (!connected || loading);
+  const canSend = !!sessionID && connected && !running && (!!input.trim() || attachments.length > 0);
 
   return (
     <div className={`dc-root dc-root-slot dc-ui ${panelStyles.root}`}>
@@ -991,9 +969,9 @@ function SessionPanel({ fixedSessionID, options }: { fixedSessionID: string; opt
             </div>
           )}
 
-          {connectionError && aiStatus.message && (
+          {connectionError && err && (
             <div className="dc-alert">
-              <span>{aiStatus.message}</span>
+              <span>{err}</span>
             </div>
           )}
 
