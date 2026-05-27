@@ -148,6 +148,31 @@ export function defineFixtureFieldBehaviorTests(api: EditorBehaviorTestApi, crea
       await expect(page.getByTestId('plugin-command-count')).toHaveText('Command count: 1');
     });
 
+
+
+    test('keeps field position stable after Vite hot update', async ({ page }) => {
+      await harness.openEditor(page);
+      await openFieldsTab(page);
+
+      const titleInput = page.locator(slotSelector('Fields/Text/title')).locator('input:not([type]), input[type="text"]').first();
+      await expect(titleInput).toBeVisible();
+      await titleInput.fill('HMR stable title');
+      await titleInput.blur();
+
+      const beforeBox = await titleInput.boundingBox();
+      expect(beforeBox).not.toBeNull();
+
+      await page.waitForTimeout(750);
+
+      const preview = page.frameLocator('iframe[title="Preview"]');
+      await expect(preview.getByRole('heading', { name: 'HMR stable title' })).toBeVisible();
+      await expect(titleInput).toHaveValue('HMR stable title');
+
+      const afterBox = await titleInput.boundingBox();
+      expect(afterBox).not.toBeNull();
+      expect(Math.abs(afterBox!.y - beforeBox!.y)).toBeLessThan(1);
+    });
+
     test('keeps authored values after a full page reload', async ({ page }) => {
       await harness.openEditor(page);
       await openFieldsTab(page);
