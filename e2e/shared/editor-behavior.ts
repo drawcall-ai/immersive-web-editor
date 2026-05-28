@@ -151,15 +151,18 @@ export function defineFixtureFieldBehaviorTests(api: EditorBehaviorTestApi, crea
 
 
     test('keeps field position stable after Vite hot update', async ({ page }) => {
+      test.skip(harness.name !== 'live preview', 'Vite hot updates are only observable in live preview mode.');
+
       await harness.openEditor(page);
       await openFieldsTab(page);
 
-      const titleInput = page.locator(slotSelector('Fields/Text/title')).locator('input:not([type]), input[type="text"]').first();
+      const titleSlot = page.locator(slotSelector('Fields/Text/title'));
+      const titleInput = titleSlot.locator('input:not([type]), input[type="text"]').first();
       await expect(titleInput).toBeVisible();
       await titleInput.fill('HMR stable title');
       await titleInput.blur();
 
-      const beforeBox = await titleInput.boundingBox();
+      const beforeBox = await titleSlot.boundingBox();
       expect(beforeBox).not.toBeNull();
 
       await page.waitForTimeout(750);
@@ -168,7 +171,7 @@ export function defineFixtureFieldBehaviorTests(api: EditorBehaviorTestApi, crea
       await expect(preview.getByRole('heading', { name: 'HMR stable title' })).toBeVisible();
       await expect(titleInput).toHaveValue('HMR stable title');
 
-      const afterBox = await titleInput.boundingBox();
+      const afterBox = await titleSlot.boundingBox();
       expect(afterBox).not.toBeNull();
       expect(Math.abs(afterBox!.y - beforeBox!.y)).toBeLessThan(1);
     });
