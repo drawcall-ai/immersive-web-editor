@@ -148,6 +148,33 @@ export function defineFixtureFieldBehaviorTests(api: EditorBehaviorTestApi, crea
       await expect(page.getByTestId('plugin-command-count')).toHaveText('Command count: 1');
     });
 
+
+
+    test('keeps field position stable after Vite hot update', async ({ page }) => {
+      test.skip(harness.name !== 'live preview', 'Vite hot updates are only observable in live preview mode.');
+
+      await harness.openEditor(page);
+      await openFieldsTab(page);
+
+      const titleSlot = page.locator(slotSelector('Fields/Text/title'));
+      const titleInput = titleSlot.locator('input:not([type]), input[type="text"]').first();
+      await expect(page.locator('[data-editor-slot-path^="Fields/Text/"]')).toHaveCount(7);
+      await expect(titleInput).toBeVisible();
+      await titleInput.fill('HMR stable title');
+      await titleInput.blur();
+
+      const beforeIndex = await slotSiblingIndex(page, 'Fields/Text/title');
+
+      await page.waitForTimeout(750);
+
+      const preview = page.frameLocator('iframe[title="Preview"]');
+      await expect(preview.getByRole('heading', { name: 'HMR stable title' })).toBeVisible();
+      await expect(titleInput).toHaveValue('HMR stable title');
+      await expect(page.locator('[data-editor-slot-path^="Fields/Text/"]')).toHaveCount(7);
+
+      await expect.poll(() => slotSiblingIndex(page, 'Fields/Text/title')).toBe(beforeIndex);
+    });
+
     test('keeps authored values after a full page reload', async ({ page }) => {
       await harness.openEditor(page);
       await openFieldsTab(page);
@@ -232,6 +259,14 @@ export async function expectEditorReady(page: Page, expect: ExpectApi): Promise<
 
 export function slotSelector(path: string): string {
   return `:is([data-editor-slot-path="${path}"], [data-editor-slot-path$="/${path}"])`;
+}
+
+
+async function slotSiblingIndex(page: Page, path: string): Promise<number> {
+  return page.locator(slotSelector(path)).evaluate((element) => {
+    const siblings = Array.from(element.parentElement?.children ?? []);
+    return siblings.indexOf(element);
+  });
 }
 
 async function commitTextField(expect: ExpectApi, page: Page, path: string, value: string): Promise<void> {
