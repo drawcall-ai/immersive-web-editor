@@ -89,7 +89,6 @@ export interface EditorRoot {
 interface SlotRecord {
   id: string;
   path: SlotPath;
-  sourceOrder: number;
   contentVersion: number;
 }
 
@@ -459,7 +458,6 @@ const styles = {
 
 const EditorContext = createContext<EditorContextValue | null>(null);
 
-let nextSourceOrder = 0;
 const DOCK_ROW_WRAP_WIDTH = 520;
 
 function useEditor(): EditorContextValue {
@@ -529,7 +527,6 @@ export function Slot({ path, children }: { path: SlotPath; children: ReactNode }
   const recordRef = useRef<SlotRecord>({
     id,
     path,
-    sourceOrder: nextSourceOrder++,
     contentVersion: 0,
   });
 
@@ -632,9 +629,13 @@ function sortTree(node: FolderNode): void {
     const bSegment = node.slotSegments.get(b.id);
     const order = (aSegment?.order ?? Number.POSITIVE_INFINITY) - (bSegment?.order ?? Number.POSITIVE_INFINITY);
     if (order !== 0) return order;
-    return compareTitleValues(aSegment?.title, bSegment?.title) || a.id.localeCompare(b.id) || a.sourceOrder - b.sourceOrder;
+    return compareTitleValues(aSegment?.title, bSegment?.title) || compareTitleValues(slotPathKey(a.path), slotPathKey(b.path));
   });
   for (const child of node.folders) sortTree(child);
+}
+
+function slotPathKey(path: SlotPath): string {
+  return path.map((segment) => segment.id ?? slug(segment.title)).join('/');
 }
 
 function compareByTitle(a: FolderNode, b: FolderNode): number {
