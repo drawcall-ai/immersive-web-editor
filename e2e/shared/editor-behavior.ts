@@ -158,22 +158,21 @@ export function defineFixtureFieldBehaviorTests(api: EditorBehaviorTestApi, crea
 
       const titleSlot = page.locator(slotSelector('Fields/Text/title'));
       const titleInput = titleSlot.locator('input:not([type]), input[type="text"]').first();
+      await expect(page.locator('[data-editor-slot-path^="Fields/Text/"]')).toHaveCount(7);
       await expect(titleInput).toBeVisible();
       await titleInput.fill('HMR stable title');
       await titleInput.blur();
 
-      const beforeBox = await titleSlot.boundingBox();
-      expect(beforeBox).not.toBeNull();
+      const beforeIndex = await slotSiblingIndex(page, 'Fields/Text/title');
 
       await page.waitForTimeout(750);
 
       const preview = page.frameLocator('iframe[title="Preview"]');
       await expect(preview.getByRole('heading', { name: 'HMR stable title' })).toBeVisible();
       await expect(titleInput).toHaveValue('HMR stable title');
+      await expect(page.locator('[data-editor-slot-path^="Fields/Text/"]')).toHaveCount(7);
 
-      const afterBox = await titleSlot.boundingBox();
-      expect(afterBox).not.toBeNull();
-      expect(Math.abs(afterBox!.y - beforeBox!.y)).toBeLessThan(1);
+      await expect.poll(() => slotSiblingIndex(page, 'Fields/Text/title')).toBe(beforeIndex);
     });
 
     test('keeps authored values after a full page reload', async ({ page }) => {
@@ -260,6 +259,14 @@ export async function expectEditorReady(page: Page, expect: ExpectApi): Promise<
 
 export function slotSelector(path: string): string {
   return `:is([data-editor-slot-path="${path}"], [data-editor-slot-path$="/${path}"])`;
+}
+
+
+async function slotSiblingIndex(page: Page, path: string): Promise<number> {
+  return page.locator(slotSelector(path)).evaluate((element) => {
+    const siblings = Array.from(element.parentElement?.children ?? []);
+    return siblings.indexOf(element);
+  });
 }
 
 async function commitTextField(expect: ExpectApi, page: Page, path: string, value: string): Promise<void> {
